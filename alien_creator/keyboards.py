@@ -7,6 +7,8 @@ CANCEL = "لغو"
 CONFIRM = "✅ تایید و ساخت"
 MODE_HOLD = "⏸ شروع از اولین اتصال"
 MODE_DATE = "📅 تاریخ‌دار از زمان ساخت"
+PANEL_ALIEN = "👽 Alien"
+PANEL_EASY = "⚡ آسان پنل"
 BACK = "بازگشت"
 
 
@@ -27,6 +29,13 @@ def cancel_keyboard() -> ReplyKeyboardMarkup:
 def mode_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [[KeyboardButton(MODE_HOLD)], [KeyboardButton(MODE_DATE)], [KeyboardButton(CANCEL)]],
+        resize_keyboard=True,
+    )
+
+
+def panel_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [[KeyboardButton(PANEL_ALIEN)], [KeyboardButton(PANEL_EASY)], [KeyboardButton(CANCEL)]],
         resize_keyboard=True,
     )
 
@@ -60,4 +69,3 @@ def inbound_keyboard(
     rows.append([InlineKeyboardButton("هیچ‌کدام", callback_data="inbound:none")])
     rows.append([InlineKeyboardButton("ذخیره", callback_data="inbound:save")])
     return InlineKeyboardMarkup(rows)
-

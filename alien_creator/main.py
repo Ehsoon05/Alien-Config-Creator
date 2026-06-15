@@ -4,7 +4,7 @@ from telegram import BotCommand
 
 from .bot import Services, build_application
 from .config import Config
-from .marzban import MarzbanClient
+from .marzban import EasyPanelClient, MarzbanClient
 from .storage import SettingsStore
 
 
@@ -16,17 +16,26 @@ def main() -> None:
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
     store = SettingsStore(config.database_path)
-    marzban = MarzbanClient(
+    alien = MarzbanClient(
         config.marzban_url,
         config.marzban_username,
         config.marzban_password,
         verify_ssl=config.verify_ssl,
     )
-    application = build_application(Services(config, store, marzban))
+    easy = EasyPanelClient(
+        config.easy_panel_url,
+        config.easy_panel_username,
+        config.easy_panel_password,
+        group_ids=config.easy_panel_group_ids,
+        verify_ssl=config.verify_ssl,
+    )
+    panels = {"alien": alien, "easy": easy}
+    application = build_application(Services(config, store, panels))
 
     async def post_init(_application):
         await store.initialize()
-        inbounds = await marzban.get_inbounds()
+        inbounds = await alien.get_inbounds()
+        await easy.authenticate()
         selected = await store.get("selected_inbounds", {})
         if not selected:
             await store.set(
@@ -47,7 +56,8 @@ def main() -> None:
         )
 
     async def post_shutdown(_application):
-        await marzban.close()
+        for panel in panels.values():
+            await panel.close()
 
     application.post_init = post_init
     application.post_shutdown = post_shutdown

@@ -23,6 +23,8 @@ from .keyboards import (
     CREATE,
     MODE_DATE,
     MODE_HOLD,
+    PANEL_ALIEN,
+    PANEL_EASY,
     SETTINGS,
     STATUS,
     cancel_keyboard,
@@ -30,6 +32,7 @@ from .keyboards import (
     inbound_keyboard,
     main_keyboard,
     mode_keyboard,
+    panel_keyboard,
 )
 from .marzban import CreateSpec, MarzbanClient, MarzbanError
 from .naming import build_sequence
@@ -37,14 +40,17 @@ from .storage import SettingsStore
 
 logger = logging.getLogger(__name__)
 
-MODE, VOLUME, DAYS, SEED, COUNT, REVIEW = range(6)
+PANEL, MODE, VOLUME, DAYS, SEED, COUNT, REVIEW = range(7)
 
 
 @dataclass
 class Services:
     config: Config
     store: SettingsStore
-    marzban: MarzbanClient
+    panels: dict[str, MarzbanClient]
+
+    def panel(self, key: str) -> MarzbanClient:
+        return self.panels[key]
 
 
 def _services(context: ContextTypes.DEFAULT_TYPE) -> Services:
@@ -73,11 +79,14 @@ async def connection_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await _authorized(update, context):
         return
     try:
-        inbounds = await _services(context).marzban.get_inbounds()
-        total = sum(len(items) for items in inbounds.values())
-        protocols = "، ".join(name.upper() for name in sorted(inbounds)) or "هیچ‌کدام"
+        alien = await _services(context).panel("alien").get_inbounds()
+        await _services(context).panel("easy").authenticate()
+        total = sum(len(items) for items in alien.values())
+        protocols = "، ".join(name.upper() for name in sorted(alien)) or "هیچ‌کدام"
         await update.effective_message.reply_text(
-            f"✅ اتصال به پنل برقرار است.\nپروتکل‌ها: {protocols}\nتعداد اینباند فعال: {total}",
+            "✅ اتصال هر دو پنل برقرار است.\n\n"
+            f"Alien: {protocols} | {total} اینباند\n"
+            "آسان پنل: MultiLocation",
             reply_markup=main_keyboard(),
         )
     except MarzbanError as exc:
@@ -92,7 +101,7 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     services = _services(context)
     try:
-        inbounds = await services.marzban.get_inbounds()
+        inbounds = await services.panel("alien").get_inbounds()
     except MarzbanError as exc:
         await update.effective_message.reply_text(f"خطا در دریافت اینباندها:\n{exc}")
         return
@@ -143,10 +152,35 @@ async def inbound_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await _authorized(update, context):
         return ConversationHandler.END
+    await update.effective_message.reply_text(
+        "پنل مقصد را انتخاب کنید:",
+        reply_markup=panel_keyboard(),
+    )
+    context.user_data["create"] = {}
+    return PANEL
+
+
+async def create_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_message.text == CANCEL:
+        return await cancel(update, context)
+    panels = {PANEL_ALIEN: "alien", PANEL_EASY: "easy"}
+    panel_key = panels.get(update.effective_message.text)
+    if not panel_key:
+        await update.effective_message.reply_text("یکی از پنل‌ها را انتخاب کنید.")
+        return PANEL
     services = _services(context)
+    context.user_data["create"]["panel"] = panel_key
+    if panel_key == "easy":
+        context.user_data["create"]["inbounds"] = {}
+        await update.effective_message.reply_text(
+            "نوع زمان‌بندی را انتخاب کنید:",
+            reply_markup=mode_keyboard(),
+        )
+        return MODE
+
     selected = await services.store.get("selected_inbounds", {})
     try:
-        available = await services.marzban.get_inbounds()
+        available = await services.panel("alien").get_inbounds()
     except MarzbanError as exc:
         await update.effective_message.reply_text(
             f"دریافت اینباندهای فعال ممکن نبود:\n{exc}",
@@ -169,7 +203,7 @@ async def create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=main_keyboard(),
         )
         return ConversationHandler.END
-    context.user_data["create"] = {"inbounds": selected}
+    context.user_data["create"]["inbounds"] = selected
     await update.effective_message.reply_text(
         "نوع زمان‌بندی را انتخاب کنید:",
         reply_markup=mode_keyboard(),
@@ -258,9 +292,15 @@ async def create_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     draft["names"] = names
     mode_label = "شروع از اولین اتصال" if draft["mode"] == "on_hold" else "تاریخ‌دار"
     volume_label = "نامحدود" if draft["volume_gb"] == 0 else f"{draft['volume_gb']} گیگ"
-    protocols = "، ".join(protocol.upper() for protocol in draft["inbounds"])
+    panel_label = "Alien" if draft["panel"] == "alien" else "آسان پنل"
+    protocols = (
+        "، ".join(protocol.upper() for protocol in draft["inbounds"])
+        if draft["panel"] == "alien"
+        else "MultiLocation (پیش‌فرض پنل)"
+    )
     await update.effective_message.reply_text(
         "پیش‌نمایش ساخت:\n\n"
+        f"پنل: {panel_label}\n"
         f"نام‌ها: `{names[0]}` تا `{names[-1]}`\n"
         f"تعداد: {len(names)}\n"
         f"حجم هرکدام: {volume_label}\n"
@@ -295,7 +335,8 @@ async def create_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             note="Created by Alien Config Creator",
         )
         try:
-            user = await _services(context).marzban.create_user(spec)
+            panel = _services(context).panel(draft["panel"])
+            user = await panel.create_user(spec)
             created.append((username, user.get("subscription_url", "")))
         except MarzbanError as exc:
             failed.append((username, str(exc)))
@@ -338,6 +379,7 @@ def build_application(services: Services) -> Application:
             MessageHandler(filters.Regex(f"^{CREATE}$"), create_start),
         ],
         states={
+            PANEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_panel)],
             MODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_mode)],
             VOLUME: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_volume)],
             DAYS: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_days)],

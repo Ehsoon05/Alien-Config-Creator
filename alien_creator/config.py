@@ -31,6 +31,10 @@ class Config:
     marzban_url: str
     marzban_username: str
     marzban_password: str
+    easy_panel_url: str
+    easy_panel_username: str
+    easy_panel_password: str
+    easy_panel_group_ids: tuple[int, ...]
     database_path: Path
     log_level: str
     verify_ssl: bool
@@ -43,6 +47,14 @@ class Config:
             marzban_url=os.getenv("MARZBAN_URL", "").strip().rstrip("/"),
             marzban_username=os.getenv("MARZBAN_USERNAME", "").strip(),
             marzban_password=os.getenv("MARZBAN_PASSWORD", ""),
+            easy_panel_url=os.getenv("EASY_PANEL_URL", "").strip().rstrip("/"),
+            easy_panel_username=os.getenv("EASY_PANEL_USERNAME", "").strip(),
+            easy_panel_password=os.getenv("EASY_PANEL_PASSWORD", ""),
+            easy_panel_group_ids=tuple(
+                int(item.strip())
+                for item in os.getenv("EASY_PANEL_GROUP_IDS", "1").split(",")
+                if item.strip().isdigit()
+            ),
             database_path=Path(os.getenv("DATABASE_PATH", "data/settings.db")),
             log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
             verify_ssl=_as_bool(os.getenv("VERIFY_SSL", "true")),
@@ -62,6 +74,13 @@ class Config:
             missing.append("MARZBAN_USERNAME")
         if not self.marzban_password:
             missing.append("MARZBAN_PASSWORD")
+        if not self.easy_panel_url:
+            missing.append("EASY_PANEL_URL")
+        if not self.easy_panel_username:
+            missing.append("EASY_PANEL_USERNAME")
+        if not self.easy_panel_password:
+            missing.append("EASY_PANEL_PASSWORD")
+        if not self.easy_panel_group_ids:
+            missing.append("EASY_PANEL_GROUP_IDS")
         if missing:
             raise RuntimeError(f"Missing required settings: {', '.join(missing)}")
-

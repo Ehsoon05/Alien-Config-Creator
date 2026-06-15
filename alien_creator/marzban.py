@@ -112,3 +112,15 @@ class MarzbanClient:
     async def create_user(self, spec: CreateSpec) -> dict[str, Any]:
         return (await self._request("POST", "/api/user", json=spec.payload())).json()
 
+
+class EasyPanelClient(MarzbanClient):
+    def __init__(self, *args, group_ids: tuple[int, ...] = (1,), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.group_ids = list(group_ids)
+
+    async def create_user(self, spec: CreateSpec) -> dict[str, Any]:
+        payload = spec.payload()
+        payload.pop("proxies", None)
+        payload.pop("inbounds", None)
+        payload["group_ids"] = self.group_ids
+        return (await self._request("POST", "/api/user", json=payload)).json()

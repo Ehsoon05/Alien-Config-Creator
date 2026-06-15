@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
-from alien_creator.marzban import CreateSpec, MarzbanClient
+from alien_creator.marzban import CreateSpec, EasyPanelClient, MarzbanClient
 
 
 INBOUNDS = {"vless": ["VLESS WS", "VLESS REALITY"]}
@@ -67,3 +67,29 @@ async def test_client_authenticates_and_creates_user():
     assert response["subscription_url"].endswith("/1")
     assert requests[1].headers["authorization"] == "Bearer token"
 
+
+@pytest.mark.asyncio
+async def test_easy_panel_uses_multilocation_without_inbound_settings():
+    payloads = []
+
+    def handler(request: httpx.Request):
+        if request.url.path == "/api/admin/token":
+            return httpx.Response(200, json={"access_token": "token"})
+        payloads.append(__import__("json").loads(request.content))
+        return httpx.Response(201, json={"subscription_url": "https://p.example/sub/1"})
+
+    client = EasyPanelClient(
+        "https://p.example",
+        "admin",
+        "password",
+        group_ids=(1,),
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        await client.create_user(CreateSpec("Alien_2", 30, 30, "on_hold", INBOUNDS))
+    finally:
+        await client.close()
+
+    assert payloads[0]["group_ids"] == [1]
+    assert "proxies" not in payloads[0]
+    assert "inbounds" not in payloads[0]
