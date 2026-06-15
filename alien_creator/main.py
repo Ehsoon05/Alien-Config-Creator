@@ -1,5 +1,7 @@
 import logging
 
+from telegram import BotCommand
+
 from .bot import Services, build_application
 from .config import Config
 from .marzban import MarzbanClient
@@ -12,6 +14,7 @@ def main() -> None:
         level=getattr(logging, config.log_level, logging.INFO),
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
     )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     store = SettingsStore(config.database_path)
     marzban = MarzbanClient(
         config.marzban_url,
@@ -33,6 +36,15 @@ def main() -> None:
                     for protocol, entries in inbounds.items()
                 },
             )
+        await _application.bot.set_my_commands(
+            [
+                BotCommand("start", "منوی اصلی"),
+                BotCommand("create", "ساخت گروهی کانفیگ"),
+                BotCommand("settings", "انتخاب پروتکل و اینباند"),
+                BotCommand("status", "بررسی اتصال پنل"),
+                BotCommand("cancel", "لغو عملیات جاری"),
+            ]
+        )
 
     async def post_shutdown(_application):
         await marzban.close()
@@ -44,4 +56,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

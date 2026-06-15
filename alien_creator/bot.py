@@ -143,7 +143,26 @@ async def inbound_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await _authorized(update, context):
         return ConversationHandler.END
-    selected = await _services(context).store.get("selected_inbounds", {})
+    services = _services(context)
+    selected = await services.store.get("selected_inbounds", {})
+    try:
+        available = await services.marzban.get_inbounds()
+    except MarzbanError as exc:
+        await update.effective_message.reply_text(
+            f"دریافت اینباندهای فعال ممکن نبود:\n{exc}",
+            reply_markup=main_keyboard(),
+        )
+        return ConversationHandler.END
+    live_tags = {
+        protocol: {entry["tag"] for entry in entries}
+        for protocol, entries in available.items()
+    }
+    selected = {
+        protocol: [tag for tag in tags if tag in live_tags.get(protocol, set())]
+        for protocol, tags in selected.items()
+    }
+    selected = {protocol: tags for protocol, tags in selected.items() if tags}
+    await services.store.set("selected_inbounds", selected)
     if not selected:
         await update.effective_message.reply_text(
             "ابتدا از بخش تنظیمات حداقل یک اینباند را انتخاب کنید.",
