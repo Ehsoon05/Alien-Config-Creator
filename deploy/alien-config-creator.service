@@ -1,0 +1,20 @@
+[Unit]
+Description=Alien Config Creator Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/alien-config-creator
+EnvironmentFile=/etc/alien-config-creator.env
+ExecStart=/opt/alien-config-creator/.venv/bin/alien-config-creator
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/alien-config-creator/data
+
+[Install]
+WantedBy=multi-user.target

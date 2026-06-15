@@ -1,0 +1,69 @@
+from datetime import datetime, timezone
+
+import httpx
+import pytest
+
+from alien_creator.marzban import CreateSpec, MarzbanClient
+
+
+INBOUNDS = {"vless": ["VLESS WS", "VLESS REALITY"]}
+
+
+def test_on_hold_payload():
+    payload = CreateSpec(
+        username="Alien_1",
+        volume_gb=30,
+        duration_days=30,
+        mode="on_hold",
+        inbounds=INBOUNDS,
+    ).payload(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    assert payload["status"] == "on_hold"
+    assert payload["expire"] == 0
+    assert payload["on_hold_expire_duration"] == 30 * 86400
+    assert payload["data_limit"] == 30 * 1024**3
+    assert payload["proxies"] == {"vless": {}}
+
+
+def test_dated_payload():
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    payload = CreateSpec(
+        username="Alien_1",
+        volume_gb=0,
+        duration_days=10,
+        mode="date",
+        inbounds=INBOUNDS,
+    ).payload(now)
+    assert payload["status"] == "active"
+    assert payload["data_limit"] == 0
+    assert payload["expire"] == int(datetime(2026, 1, 11, tzinfo=timezone.utc).timestamp())
+
+
+@pytest.mark.asyncio
+async def test_client_authenticates_and_creates_user():
+    requests = []
+
+    def handler(request: httpx.Request):
+        requests.append(request)
+        if request.url.path == "/api/admin/token":
+            return httpx.Response(200, json={"access_token": "token", "token_type": "bearer"})
+        return httpx.Response(
+            200,
+            json={"username": "Alien_1", "subscription_url": "https://example.com/sub/1"},
+        )
+
+    client = MarzbanClient(
+        "https://example.com",
+        "admin",
+        "password",
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        response = await client.create_user(
+            CreateSpec("Alien_1", 10, 30, "on_hold", INBOUNDS)
+        )
+    finally:
+        await client.close()
+
+    assert response["subscription_url"].endswith("/1")
+    assert requests[1].headers["authorization"] == "Bearer token"
+
