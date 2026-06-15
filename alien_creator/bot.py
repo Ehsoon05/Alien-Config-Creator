@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import io
+import asyncio
 import logging
 from dataclasses import dataclass
 
 from telegram import Update
 from telegram.constants import ParseMode
+from telegram.error import RetryAfter
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -337,7 +338,11 @@ async def create_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             panel = _services(context).panel(draft["panel"])
             user = await panel.create_user(spec)
-            created.append((username, user.get("subscription_url", "")))
+            subscription_url = str(user.get("subscription_url", "")).strip()
+            if not subscription_url:
+                failed.append((username, "پنل لینک اشتراک برنگرداند."))
+            else:
+                created.append((username, subscription_url))
         except MarzbanError as exc:
             failed.append((username, str(exc)))
         if index == total or index % 5 == 0:
@@ -346,18 +351,33 @@ async def create_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"موفق: {len(created)} | ناموفق: {len(failed)}"
             )
 
-    output = io.StringIO()
+    await progress.edit_text(
+        f"ساخت تمام شد؛ در حال ارسال لینک‌ها: 0/{len(created)}"
+    )
     for username, link in created:
-        output.write(f"{username}\n{link}\n\n")
+        while True:
+            try:
+                await update.effective_message.reply_text(
+                    f"✅ {username}\n{link}",
+                )
+                break
+            except RetryAfter as exc:
+                await asyncio.sleep(float(exc.retry_after) + 0.5)
+        await asyncio.sleep(0.05)
+
+    summary = f"ارسال تمام شد.\nموفق: {len(created)}\nناموفق: {len(failed)}"
     if failed:
-        output.write("\n--- FAILED ---\n")
+        failure_lines = []
         for username, error in failed:
-            output.write(f"{username}: {error}\n")
-    document = io.BytesIO(output.getvalue().encode("utf-8"))
-    document.name = f"{draft['names'][0]}-{draft['names'][-1]}.txt"
-    await update.effective_message.reply_document(
-        document=document,
-        caption=f"ساخت تمام شد.\nموفق: {len(created)}\nناموفق: {len(failed)}",
+            failure_lines.append(f"❌ {username}: {error}")
+        failure_text = "\n".join(failure_lines)
+        summary = f"{summary}\n\n{failure_text[:3500]}"
+
+    await progress.edit_text(
+        f"ساخت و ارسال تمام شد.\nموفق: {len(created)} | ناموفق: {len(failed)}"
+    )
+    await update.effective_message.reply_text(
+        summary,
         reply_markup=main_keyboard(),
     )
     context.user_data.pop("create", None)
