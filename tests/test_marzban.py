@@ -22,6 +22,7 @@ def test_on_hold_payload():
     assert payload["on_hold_expire_duration"] == 30 * 86400
     assert payload["data_limit"] == 30 * 1024**3
     assert payload["proxies"] == {"vless": {}}
+    assert "note" not in payload
 
 
 def test_dated_payload():

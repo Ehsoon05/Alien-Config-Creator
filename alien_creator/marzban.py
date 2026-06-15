@@ -18,7 +18,6 @@ class CreateSpec:
     duration_days: int
     mode: str
     inbounds: dict[str, list[str]]
-    note: str = ""
 
     def payload(self, now: datetime | None = None) -> dict[str, Any]:
         now = now or datetime.now(timezone.utc)
@@ -30,7 +29,6 @@ class CreateSpec:
             "data_limit_reset_strategy": "no_reset",
             "proxies": {protocol: {} for protocol in protocols},
             "inbounds": self.inbounds,
-            "note": self.note,
         }
         if self.mode == "on_hold":
             payload.update(

@@ -333,7 +333,6 @@ async def create_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             duration_days=draft["duration_days"],
             mode=draft["mode"],
             inbounds=draft["inbounds"],
-            note="Created by Alien Config Creator",
         )
         try:
             panel = _services(context).panel(draft["panel"])
