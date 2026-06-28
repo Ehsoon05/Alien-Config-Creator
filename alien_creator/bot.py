@@ -26,6 +26,8 @@ from .keyboards import (
     MODE_HOLD,
     PANEL_ALIEN,
     PANEL_EASY,
+    PANEL_MEXICO_HAJMI,
+    PANEL_MEXICO_NAMAHDOD,
     SETTINGS,
     STATUS,
     cancel_keyboard,
@@ -42,6 +44,20 @@ from .storage import SettingsStore
 logger = logging.getLogger(__name__)
 
 PANEL, MODE, VOLUME, DAYS, SEED, COUNT, REVIEW = range(7)
+
+EASY_PANEL_KEYS = {"easy", "mexico_hajmi", "mexico_namahdod"}
+PANEL_BUTTONS = {
+    PANEL_ALIEN: "alien",
+    PANEL_EASY: "easy",
+    PANEL_MEXICO_HAJMI: "mexico_hajmi",
+    PANEL_MEXICO_NAMAHDOD: "mexico_namahdod",
+}
+PANEL_LABELS = {
+    "alien": "Alien",
+    "easy": "آسان پنل",
+    "mexico_hajmi": "Mexico Hajmi",
+    "mexico_namahdod": "Mexico Namahdod",
+}
 
 
 @dataclass
@@ -80,14 +96,18 @@ async def connection_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await _authorized(update, context):
         return
     try:
-        alien = await _services(context).panel("alien").get_inbounds()
-        await _services(context).panel("easy").authenticate()
+        services = _services(context)
+        alien = await services.panel("alien").get_inbounds()
+        easy_status = []
+        for panel_key in sorted(key for key in services.panels if key in EASY_PANEL_KEYS):
+            await services.panel(panel_key).authenticate()
+            easy_status.append(PANEL_LABELS.get(panel_key, panel_key))
         total = sum(len(items) for items in alien.values())
         protocols = "، ".join(name.upper() for name in sorted(alien)) or "هیچ‌کدام"
         await update.effective_message.reply_text(
-            "✅ اتصال هر دو پنل برقرار است.\n\n"
+            "✅ اتصال پنل‌ها برقرار است.\n\n"
             f"Alien: {protocols} | {total} اینباند\n"
-            "آسان پنل: MultiLocation",
+            f"Pasarguard: {', '.join(easy_status) or '-'}",
             reply_markup=main_keyboard(),
         )
     except MarzbanError as exc:
@@ -164,14 +184,13 @@ async def create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def create_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_message.text == CANCEL:
         return await cancel(update, context)
-    panels = {PANEL_ALIEN: "alien", PANEL_EASY: "easy"}
-    panel_key = panels.get(update.effective_message.text)
-    if not panel_key:
+    panel_key = PANEL_BUTTONS.get(update.effective_message.text)
+    if not panel_key or panel_key not in _services(context).panels:
         await update.effective_message.reply_text("یکی از پنل‌ها را انتخاب کنید.")
         return PANEL
     services = _services(context)
     context.user_data["create"]["panel"] = panel_key
-    if panel_key == "easy":
+    if panel_key in EASY_PANEL_KEYS:
         context.user_data["create"]["inbounds"] = {}
         await update.effective_message.reply_text(
             "نوع زمان‌بندی را انتخاب کنید:",
@@ -293,7 +312,7 @@ async def create_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     draft["names"] = names
     mode_label = "شروع از اولین اتصال" if draft["mode"] == "on_hold" else "تاریخ‌دار"
     volume_label = "نامحدود" if draft["volume_gb"] == 0 else f"{draft['volume_gb']} گیگ"
-    panel_label = "Alien" if draft["panel"] == "alien" else "آسان پنل"
+    panel_label = PANEL_LABELS.get(draft["panel"], draft["panel"])
     protocols = (
         "، ".join(protocol.upper() for protocol in draft["inbounds"])
         if draft["panel"] == "alien"

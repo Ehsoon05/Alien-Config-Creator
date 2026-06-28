@@ -27,15 +27,36 @@ def main() -> None:
         config.easy_panel_username,
         config.easy_panel_password,
         group_ids=config.easy_panel_group_ids,
+        hwid_limit=config.easy_panel_hwid_limit,
         verify_ssl=config.verify_ssl,
     )
     panels = {"alien": alien, "easy": easy}
+    if config.mexico_hajmi_panel_url:
+        panels["mexico_hajmi"] = EasyPanelClient(
+            config.mexico_hajmi_panel_url,
+            config.mexico_hajmi_panel_username,
+            config.mexico_hajmi_panel_password,
+            group_ids=config.mexico_hajmi_panel_group_ids,
+            hwid_limit=config.mexico_hajmi_panel_hwid_limit,
+            verify_ssl=config.verify_ssl,
+        )
+    if config.mexico_namahdod_panel_url:
+        panels["mexico_namahdod"] = EasyPanelClient(
+            config.mexico_namahdod_panel_url,
+            config.mexico_namahdod_panel_username,
+            config.mexico_namahdod_panel_password,
+            group_ids=config.mexico_namahdod_panel_group_ids,
+            hwid_limit=config.mexico_namahdod_panel_hwid_limit,
+            verify_ssl=config.verify_ssl,
+        )
     application = build_application(Services(config, store, panels))
 
     async def post_init(_application):
         await store.initialize()
         inbounds = await alien.get_inbounds()
-        await easy.authenticate()
+        for panel_key, panel in panels.items():
+            if panel_key != "alien":
+                await panel.authenticate()
         selected = await store.get("selected_inbounds", {})
         if not selected:
             await store.set(

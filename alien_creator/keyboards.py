@@ -9,6 +9,8 @@ MODE_HOLD = "⏸ شروع از اولین اتصال"
 MODE_DATE = "📅 تاریخ‌دار از زمان ساخت"
 PANEL_ALIEN = "👽 Alien"
 PANEL_EASY = "⚡ آسان پنل"
+PANEL_MEXICO_HAJMI = "🇲🇽 Mexico Hajmi"
+PANEL_MEXICO_NAMAHDOD = "🇲🇽 Mexico Namahdod"
 BACK = "بازگشت"
 
 
@@ -35,7 +37,13 @@ def mode_keyboard() -> ReplyKeyboardMarkup:
 
 def panel_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [[KeyboardButton(PANEL_ALIEN)], [KeyboardButton(PANEL_EASY)], [KeyboardButton(CANCEL)]],
+        [
+            [KeyboardButton(PANEL_ALIEN)],
+            [KeyboardButton(PANEL_EASY)],
+            [KeyboardButton(PANEL_MEXICO_HAJMI)],
+            [KeyboardButton(PANEL_MEXICO_NAMAHDOD)],
+            [KeyboardButton(CANCEL)],
+        ],
         resize_keyboard=True,
     )
 

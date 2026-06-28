@@ -112,13 +112,22 @@ class MarzbanClient:
 
 
 class EasyPanelClient(MarzbanClient):
-    def __init__(self, *args, group_ids: tuple[int, ...] = (1,), **kwargs):
+    def __init__(
+        self,
+        *args,
+        group_ids: tuple[int, ...] = (1,),
+        hwid_limit: int | None = None,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.group_ids = list(group_ids)
+        self.hwid_limit = hwid_limit
 
     async def create_user(self, spec: CreateSpec) -> dict[str, Any]:
         payload = spec.payload()
         payload.pop("proxies", None)
         payload.pop("inbounds", None)
         payload["group_ids"] = self.group_ids
+        if self.hwid_limit is not None:
+            payload["hwid_limit"] = int(self.hwid_limit)
         return (await self._request("POST", "/api/user", json=payload)).json()

@@ -94,3 +94,29 @@ async def test_easy_panel_uses_multilocation_without_inbound_settings():
     assert payloads[0]["group_ids"] == [1]
     assert "proxies" not in payloads[0]
     assert "inbounds" not in payloads[0]
+
+
+@pytest.mark.asyncio
+async def test_easy_panel_can_send_hwid_limit():
+    payloads = []
+
+    def handler(request: httpx.Request):
+        if request.url.path == "/api/admin/token":
+            return httpx.Response(200, json={"access_token": "token"})
+        payloads.append(__import__("json").loads(request.content))
+        return httpx.Response(201, json={"subscription_url": "https://p.example/sub/1"})
+
+    client = EasyPanelClient(
+        "https://p.example",
+        "admin",
+        "password",
+        group_ids=(1,),
+        hwid_limit=2,
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        await client.create_user(CreateSpec("Alien_3", 30, 30, "on_hold", INBOUNDS))
+    finally:
+        await client.close()
+
+    assert payloads[0]["hwid_limit"] == 2

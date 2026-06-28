@@ -24,6 +24,13 @@ def _as_bool(value: str, default: bool = True) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _as_int(value: str, default: int) -> int:
+    try:
+        return int(value.strip())
+    except (AttributeError, ValueError):
+        return default
+
+
 @dataclass(frozen=True)
 class Config:
     bot_token: str
@@ -35,6 +42,17 @@ class Config:
     easy_panel_username: str
     easy_panel_password: str
     easy_panel_group_ids: tuple[int, ...]
+    easy_panel_hwid_limit: int | None
+    mexico_hajmi_panel_url: str
+    mexico_hajmi_panel_username: str
+    mexico_hajmi_panel_password: str
+    mexico_hajmi_panel_group_ids: tuple[int, ...]
+    mexico_hajmi_panel_hwid_limit: int | None
+    mexico_namahdod_panel_url: str
+    mexico_namahdod_panel_username: str
+    mexico_namahdod_panel_password: str
+    mexico_namahdod_panel_group_ids: tuple[int, ...]
+    mexico_namahdod_panel_hwid_limit: int | None
     database_path: Path
     log_level: str
     verify_ssl: bool
@@ -54,6 +72,37 @@ class Config:
                 int(item.strip())
                 for item in os.getenv("EASY_PANEL_GROUP_IDS", "1").split(",")
                 if item.strip().isdigit()
+            ),
+            easy_panel_hwid_limit=(
+                _as_int(os.getenv("EASY_PANEL_HWID_LIMIT", ""), 2)
+                if os.getenv("EASY_PANEL_HWID_LIMIT", "").strip()
+                else None
+            ),
+            mexico_hajmi_panel_url=os.getenv("MEXICO_HAJMI_PANEL_URL", "").strip().rstrip("/"),
+            mexico_hajmi_panel_username=os.getenv("MEXICO_HAJMI_PANEL_USERNAME", "").strip(),
+            mexico_hajmi_panel_password=os.getenv("MEXICO_HAJMI_PANEL_PASSWORD", ""),
+            mexico_hajmi_panel_group_ids=tuple(
+                int(item.strip())
+                for item in os.getenv("MEXICO_HAJMI_PANEL_GROUP_IDS", "1").split(",")
+                if item.strip().isdigit()
+            ),
+            mexico_hajmi_panel_hwid_limit=(
+                _as_int(os.getenv("MEXICO_HAJMI_PANEL_HWID_LIMIT", ""), 2)
+                if os.getenv("MEXICO_HAJMI_PANEL_HWID_LIMIT", "").strip()
+                else None
+            ),
+            mexico_namahdod_panel_url=os.getenv("MEXICO_NAMAHDOD_PANEL_URL", "").strip().rstrip("/"),
+            mexico_namahdod_panel_username=os.getenv("MEXICO_NAMAHDOD_PANEL_USERNAME", "").strip(),
+            mexico_namahdod_panel_password=os.getenv("MEXICO_NAMAHDOD_PANEL_PASSWORD", ""),
+            mexico_namahdod_panel_group_ids=tuple(
+                int(item.strip())
+                for item in os.getenv("MEXICO_NAMAHDOD_PANEL_GROUP_IDS", "1").split(",")
+                if item.strip().isdigit()
+            ),
+            mexico_namahdod_panel_hwid_limit=(
+                _as_int(os.getenv("MEXICO_NAMAHDOD_PANEL_HWID_LIMIT", ""), 2)
+                if os.getenv("MEXICO_NAMAHDOD_PANEL_HWID_LIMIT", "").strip()
+                else None
             ),
             database_path=Path(os.getenv("DATABASE_PATH", "data/settings.db")),
             log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
@@ -82,5 +131,33 @@ class Config:
             missing.append("EASY_PANEL_PASSWORD")
         if not self.easy_panel_group_ids:
             missing.append("EASY_PANEL_GROUP_IDS")
+        mexico_panels = [
+            (
+                "MEXICO_HAJMI",
+                self.mexico_hajmi_panel_url,
+                self.mexico_hajmi_panel_username,
+                self.mexico_hajmi_panel_password,
+                self.mexico_hajmi_panel_group_ids,
+            ),
+            (
+                "MEXICO_NAMAHDOD",
+                self.mexico_namahdod_panel_url,
+                self.mexico_namahdod_panel_username,
+                self.mexico_namahdod_panel_password,
+                self.mexico_namahdod_panel_group_ids,
+            ),
+        ]
+        for prefix, url, username, password, group_ids in mexico_panels:
+            any_value = bool(url or username or password)
+            if not any_value:
+                continue
+            if not url:
+                missing.append(f"{prefix}_PANEL_URL")
+            if not username:
+                missing.append(f"{prefix}_PANEL_USERNAME")
+            if not password:
+                missing.append(f"{prefix}_PANEL_PASSWORD")
+            if not group_ids:
+                missing.append(f"{prefix}_PANEL_GROUP_IDS")
         if missing:
             raise RuntimeError(f"Missing required settings: {', '.join(missing)}")
