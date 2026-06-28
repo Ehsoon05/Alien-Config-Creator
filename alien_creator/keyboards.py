@@ -7,6 +7,7 @@ CANCEL = "لغو"
 CONFIRM = "✅ تایید و ساخت"
 MODE_HOLD = "⏸ شروع از اولین اتصال"
 MODE_DATE = "📅 تاریخ‌دار از زمان ساخت"
+MODE_UNLIMITED = "♾ زمان نامحدود"
 PANEL_ALIEN = "👽 Alien"
 PANEL_EASY = "⚡ آسان پنل"
 PANEL_MEXICO_HAJMI = "🇲🇽 Mexico Hajmi"
@@ -30,7 +31,7 @@ def cancel_keyboard() -> ReplyKeyboardMarkup:
 
 def mode_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [[KeyboardButton(MODE_HOLD)], [KeyboardButton(MODE_DATE)], [KeyboardButton(CANCEL)]],
+        [[KeyboardButton(MODE_HOLD)], [KeyboardButton(MODE_DATE)], [KeyboardButton(MODE_UNLIMITED)], [KeyboardButton(CANCEL)]],
         resize_keyboard=True,
     )
 
@@ -77,3 +78,21 @@ def inbound_keyboard(
     rows.append([InlineKeyboardButton("هیچ‌کدام", callback_data="inbound:none")])
     rows.append([InlineKeyboardButton("ذخیره", callback_data="inbound:save")])
     return InlineKeyboardMarkup(rows)
+
+
+def settings_panel_keyboard(panels: dict[str, str]) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(label, callback_data=f"settings_panel:{key}")]
+        for key, label in panels.items()
+    ]
+    return InlineKeyboardMarkup(rows)
+
+
+def easy_panel_settings_keyboard(panel_key: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("تنظیم گروه‌ها", callback_data=f"easy_settings:{panel_key}:groups")],
+            [InlineKeyboardButton("تنظیم HWID", callback_data=f"easy_settings:{panel_key}:hwid")],
+            [InlineKeyboardButton("بازگشت", callback_data="settings_back")],
+        ]
+    )

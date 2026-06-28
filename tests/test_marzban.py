@@ -39,6 +39,19 @@ def test_dated_payload():
     assert payload["expire"] == int(datetime(2026, 1, 11, tzinfo=timezone.utc).timestamp())
 
 
+def test_unlimited_time_payload():
+    payload = CreateSpec(
+        username="Alien_1",
+        volume_gb=0,
+        duration_days=10,
+        mode="unlimited",
+        inbounds=INBOUNDS,
+    ).payload(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    assert payload["status"] == "active"
+    assert payload["expire"] == 0
+    assert payload["on_hold_expire_duration"] is None
+
+
 @pytest.mark.asyncio
 async def test_client_authenticates_and_creates_user():
     requests = []

@@ -30,7 +30,14 @@ class CreateSpec:
             "proxies": {protocol: {} for protocol in protocols},
             "inbounds": self.inbounds,
         }
-        if self.mode == "on_hold":
+        if self.mode == "unlimited":
+            payload.update(
+                {
+                    "expire": 0,
+                    "on_hold_expire_duration": None,
+                }
+            )
+        elif self.mode == "on_hold":
             payload.update(
                 {
                     "expire": 0,
@@ -122,6 +129,17 @@ class EasyPanelClient(MarzbanClient):
         super().__init__(*args, **kwargs)
         self.group_ids = list(group_ids)
         self.hwid_limit = hwid_limit
+
+    def update_settings(
+        self,
+        *,
+        group_ids: tuple[int, ...] | list[int] | None = None,
+        hwid_limit: int | None | object = ...,
+    ) -> None:
+        if group_ids is not None:
+            self.group_ids = [int(item) for item in group_ids]
+        if hwid_limit is not ...:
+            self.hwid_limit = None if hwid_limit is None else int(hwid_limit)
 
     async def create_user(self, spec: CreateSpec) -> dict[str, Any]:
         payload = spec.payload()

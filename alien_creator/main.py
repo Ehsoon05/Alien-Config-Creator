@@ -62,6 +62,15 @@ def main() -> None:
             logger.warning("Alien panel startup check failed: %s", exc)
         for panel_key, panel in panels.items():
             if panel_key != "alien":
+                settings = await store.get(f"panel_settings:{panel_key}", {})
+                if isinstance(settings, dict) and hasattr(panel, "update_settings"):
+                    kwargs = {}
+                    if isinstance(settings.get("group_ids"), list) and settings["group_ids"]:
+                        kwargs["group_ids"] = settings["group_ids"]
+                    if "hwid_limit" in settings:
+                        kwargs["hwid_limit"] = settings["hwid_limit"]
+                    if kwargs:
+                        panel.update_settings(**kwargs)
                 try:
                     await panel.authenticate()
                 except MarzbanError as exc:

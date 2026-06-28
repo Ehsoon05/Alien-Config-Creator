@@ -24,6 +24,7 @@ from .keyboards import (
     CREATE,
     MODE_DATE,
     MODE_HOLD,
+    MODE_UNLIMITED,
     PANEL_ALIEN,
     PANEL_EASY,
     PANEL_MEXICO_HAJMI,
@@ -32,10 +33,12 @@ from .keyboards import (
     STATUS,
     cancel_keyboard,
     confirm_keyboard,
+    easy_panel_settings_keyboard,
     inbound_keyboard,
     main_keyboard,
     mode_keyboard,
     panel_keyboard,
+    settings_panel_keyboard,
 )
 from .marzban import CreateSpec, MarzbanClient, MarzbanError
 from .naming import build_sequence
@@ -58,6 +61,30 @@ PANEL_LABELS = {
     "mexico_hajmi": "Mexico Hajmi",
     "mexico_namahdod": "Mexico Namahdod",
 }
+
+
+def _configured_panel_labels(services: "Services") -> dict[str, str]:
+    return {
+        key: PANEL_LABELS.get(key, key)
+        for key in ("alien", "easy", "mexico_hajmi", "mexico_namahdod")
+        if key in services.panels
+    }
+
+
+async def _apply_easy_panel_settings(services: "Services", panel_key: str) -> dict:
+    panel = services.panel(panel_key)
+    settings = await services.store.get(f"panel_settings:{panel_key}", {})
+    if panel_key in EASY_PANEL_KEYS and hasattr(panel, "update_settings"):
+        group_ids = settings.get("group_ids")
+        hwid_limit = settings.get("hwid_limit", ...)
+        kwargs = {}
+        if isinstance(group_ids, list) and group_ids:
+            kwargs["group_ids"] = [int(item) for item in group_ids]
+        if hwid_limit is not ...:
+            kwargs["hwid_limit"] = hwid_limit
+        if kwargs:
+            panel.update_settings(**kwargs)
+    return settings if isinstance(settings, dict) else {}
 
 
 @dataclass
@@ -121,17 +148,117 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await _authorized(update, context):
         return
     services = _services(context)
+    await update.effective_message.reply_text(
+        "پنلی که می‌خواهید تنظیم کنید را انتخاب کنید:",
+        reply_markup=settings_panel_keyboard(_configured_panel_labels(services)),
+    )
+
+
+async def settings_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if not await _authorized(update, context):
+        return
+    services = _services(context)
+    panel_key = (query.data or "").split(":", 1)[1]
+    if panel_key not in services.panels:
+        await query.answer("پنل معتبر نیست.", show_alert=True)
+        return
+    if panel_key in EASY_PANEL_KEYS:
+        settings_payload = await _apply_easy_panel_settings(services, panel_key)
+        panel = services.panel(panel_key)
+        group_ids = getattr(panel, "group_ids", settings_payload.get("group_ids", []))
+        hwid_limit = getattr(panel, "hwid_limit", settings_payload.get("hwid_limit"))
+        await query.edit_message_text(
+            f"تنظیمات {PANEL_LABELS.get(panel_key, panel_key)}\n\n"
+            f"گروه‌ها: {group_ids or '-'}\n"
+            f"HWID: {hwid_limit if hwid_limit is not None else '-'}",
+            reply_markup=easy_panel_settings_keyboard(panel_key),
+        )
+        return
+
     try:
         inbounds = await services.panel("alien").get_inbounds()
     except MarzbanError as exc:
-        await update.effective_message.reply_text(f"خطا در دریافت اینباندها:\n{exc}")
+        await query.edit_message_text(f"خطا در دریافت اینباندها:\n{exc}")
         return
     selected = await services.store.get("selected_inbounds", {})
     context.user_data["available_inbounds"] = inbounds
     context.user_data["selected_inbounds"] = selected
-    await update.effective_message.reply_text(
+    await query.edit_message_text(
         "اینباندهای موردنظر را انتخاب کنید. فقط اینباندهای فعال پنل نمایش داده می‌شوند.",
         reply_markup=inbound_keyboard(inbounds, selected),
+    )
+
+
+async def settings_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if not await _authorized(update, context):
+        return
+    services = _services(context)
+    await query.edit_message_text(
+        "پنلی که می‌خواهید تنظیم کنید را انتخاب کنید:",
+        reply_markup=settings_panel_keyboard(_configured_panel_labels(services)),
+    )
+
+
+async def easy_settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if not await _authorized(update, context):
+        return
+    _, panel_key, field = (query.data or "").split(":", 2)
+    if panel_key not in _services(context).panels or panel_key not in EASY_PANEL_KEYS:
+        await query.answer("پنل معتبر نیست.", show_alert=True)
+        return
+    context.user_data["easy_settings_edit"] = {"panel": panel_key, "field": field}
+    prompt = (
+        "شناسه گروه‌ها را با کاما بفرستید. مثال: 1,2"
+        if field == "groups"
+        else "عدد HWID را بفرستید. برای حذف مقدار اختصاصی، - بفرستید."
+    )
+    await query.message.reply_text(prompt, reply_markup=cancel_keyboard())
+
+
+async def easy_settings_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await _authorized(update, context):
+        return
+    edit = context.user_data.get("easy_settings_edit")
+    if not edit:
+        return
+    text = (update.effective_message.text or "").strip()
+    if text == CANCEL:
+        context.user_data.pop("easy_settings_edit", None)
+        await update.effective_message.reply_text("لغو شد.", reply_markup=main_keyboard())
+        return
+    services = _services(context)
+    panel_key = edit["panel"]
+    field = edit["field"]
+    settings_payload = await services.store.get(f"panel_settings:{panel_key}", {})
+    settings_payload = settings_payload if isinstance(settings_payload, dict) else {}
+    try:
+        if field == "groups":
+            group_ids = [int(item.strip()) for item in text.split(",") if item.strip()]
+            if not group_ids:
+                raise ValueError
+            settings_payload["group_ids"] = group_ids
+        elif field == "hwid":
+            settings_payload["hwid_limit"] = None if text == "-" else int(text)
+            if settings_payload["hwid_limit"] is not None and settings_payload["hwid_limit"] < 0:
+                raise ValueError
+        else:
+            await update.effective_message.reply_text("تنظیم معتبر نیست.")
+            return
+    except ValueError:
+        await update.effective_message.reply_text("مقدار معتبر نیست.")
+        return
+    await services.store.set(f"panel_settings:{panel_key}", settings_payload)
+    await _apply_easy_panel_settings(services, panel_key)
+    context.user_data.pop("easy_settings_edit", None)
+    await update.effective_message.reply_text(
+        f"✅ تنظیمات {PANEL_LABELS.get(panel_key, panel_key)} ذخیره شد.",
+        reply_markup=main_keyboard(),
     )
 
 
@@ -234,7 +361,7 @@ async def create_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def create_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_message.text == CANCEL:
         return await cancel(update, context)
-    modes = {MODE_HOLD: "on_hold", MODE_DATE: "date"}
+    modes = {MODE_HOLD: "on_hold", MODE_DATE: "date", MODE_UNLIMITED: "unlimited"}
     mode = modes.get(update.effective_message.text)
     if not mode:
         await update.effective_message.reply_text("یکی از گزینه‌های روی کیبورد را انتخاب کنید.")
@@ -310,7 +437,11 @@ async def create_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text(str(exc))
         return SEED
     draft["names"] = names
-    mode_label = "شروع از اولین اتصال" if draft["mode"] == "on_hold" else "تاریخ‌دار"
+    mode_label = {
+        "on_hold": "شروع از اولین اتصال",
+        "date": "تاریخ‌دار",
+        "unlimited": "زمان نامحدود",
+    }.get(draft["mode"], draft["mode"])
     volume_label = "نامحدود" if draft["volume_gb"] == 0 else f"{draft['volume_gb']} گیگ"
     panel_label = PANEL_LABELS.get(draft["panel"], draft["panel"])
     protocols = (
@@ -430,8 +561,12 @@ def build_application(services: Services) -> Application:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("status", connection_status))
     application.add_handler(CommandHandler("settings", settings))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, easy_settings_value), group=1)
     application.add_handler(create_flow)
     application.add_handler(MessageHandler(filters.Regex(f"^{STATUS}$"), connection_status))
     application.add_handler(MessageHandler(filters.Regex(f"^{SETTINGS}$"), settings))
+    application.add_handler(CallbackQueryHandler(settings_panel_callback, pattern=r"^settings_panel:"))
+    application.add_handler(CallbackQueryHandler(settings_back_callback, pattern=r"^settings_back$"))
+    application.add_handler(CallbackQueryHandler(easy_settings_callback, pattern=r"^easy_settings:"))
     application.add_handler(CallbackQueryHandler(inbound_toggle, pattern=r"^inbound:"))
     return application
