@@ -4,8 +4,10 @@ from telegram import BotCommand
 
 from .bot import Services, build_application
 from .config import Config
-from .marzban import EasyPanelClient, MarzbanClient
+from .marzban import EasyPanelClient, MarzbanClient, MarzbanError
 from .storage import SettingsStore
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -53,12 +55,19 @@ def main() -> None:
 
     async def post_init(_application):
         await store.initialize()
-        inbounds = await alien.get_inbounds()
+        inbounds = {}
+        try:
+            inbounds = await alien.get_inbounds()
+        except MarzbanError as exc:
+            logger.warning("Alien panel startup check failed: %s", exc)
         for panel_key, panel in panels.items():
             if panel_key != "alien":
-                await panel.authenticate()
+                try:
+                    await panel.authenticate()
+                except MarzbanError as exc:
+                    logger.warning("%s panel startup check failed: %s", panel_key, exc)
         selected = await store.get("selected_inbounds", {})
-        if not selected:
+        if not selected and inbounds:
             await store.set(
                 "selected_inbounds",
                 {
