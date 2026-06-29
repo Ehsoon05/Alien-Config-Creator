@@ -18,6 +18,7 @@ class CreateSpec:
     duration_days: int
     mode: str
     inbounds: dict[str, list[str]]
+    hwid_limit: int | None = None
 
     def payload(self, now: datetime | None = None) -> dict[str, Any]:
         now = now or datetime.now(timezone.utc)
@@ -146,6 +147,7 @@ class EasyPanelClient(MarzbanClient):
         payload.pop("proxies", None)
         payload.pop("inbounds", None)
         payload["group_ids"] = self.group_ids
-        if self.hwid_limit is not None:
-            payload["hwid_limit"] = int(self.hwid_limit)
+        hwid_limit = spec.hwid_limit if spec.hwid_limit is not None else self.hwid_limit
+        if hwid_limit is not None:
+            payload["hwid_limit"] = int(hwid_limit)
         return (await self._request("POST", "/api/user", json=payload)).json()

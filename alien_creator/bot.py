@@ -31,8 +31,10 @@ from .keyboards import (
     PANEL_MEXICO_NAMAHDOD,
     SETTINGS,
     STATUS,
+    USE_DEFAULT,
     cancel_keyboard,
     confirm_keyboard,
+    default_or_cancel_keyboard,
     easy_panel_settings_keyboard,
     inbound_keyboard,
     main_keyboard,
@@ -46,7 +48,7 @@ from .storage import SettingsStore
 
 logger = logging.getLogger(__name__)
 
-PANEL, MODE, VOLUME, DAYS, SEED, COUNT, REVIEW = range(7)
+PANEL, MODE, VOLUME, DAYS, HWID, SEED, COUNT, REVIEW = range(8)
 
 EASY_PANEL_KEYS = {"easy", "mexico_hajmi", "mexico_namahdod"}
 PANEL_BUTTONS = {
@@ -402,6 +404,41 @@ async def create_days(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("مدت باید بیشتر از صفر باشد.")
         return DAYS
     context.user_data["create"]["duration_days"] = days
+    draft = context.user_data["create"]
+    if draft["panel"] in EASY_PANEL_KEYS:
+        panel = _services(context).panel(draft["panel"])
+        default_hwid = getattr(panel, "hwid_limit", None)
+        default_label = default_hwid if default_hwid is not None else "پیش‌فرض خود پنل"
+        await update.effective_message.reply_text(
+            "محدودیت HWID این batch را وارد کنید.\n"
+            f"پیش‌فرض فعلی: {default_label}\n\n"
+            "اگر می‌خواهید همان پیش‌فرض استفاده شود، دکمه پیش‌فرض را بزنید.",
+            reply_markup=default_or_cancel_keyboard(),
+        )
+        return HWID
+    return await _ask_seed(update)
+
+
+async def create_hwid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (update.effective_message.text or "").strip()
+    if text == CANCEL:
+        return await cancel(update, context)
+    if text == USE_DEFAULT or text == "-":
+        context.user_data["create"]["hwid_limit"] = None
+        return await _ask_seed(update)
+    try:
+        value = int(text)
+    except ValueError:
+        await update.effective_message.reply_text("HWID باید عدد باشد یا دکمه پیش‌فرض را بزنید.")
+        return HWID
+    if value < 0:
+        await update.effective_message.reply_text("HWID نمی‌تواند منفی باشد.")
+        return HWID
+    context.user_data["create"]["hwid_limit"] = value
+    return await _ask_seed(update)
+
+
+async def _ask_seed(update: Update):
     await update.effective_message.reply_text(
         "نام کانفیگ اول را بفرستید. نام باید با عدد تمام شود.\n"
         "مثال: `PhantomHubs_Vpn_1`\n\n"
@@ -449,6 +486,12 @@ async def create_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if draft["panel"] == "alien"
         else "MultiLocation (پیش‌فرض پنل)"
     )
+    hwid_value = draft.get("hwid_limit")
+    hwid_label = (
+        "پیش‌فرض پنل"
+        if draft["panel"] in EASY_PANEL_KEYS and hwid_value is None
+        else str(hwid_value or "-")
+    )
     await update.effective_message.reply_text(
         "پیش‌نمایش ساخت:\n\n"
         f"پنل: {panel_label}\n"
@@ -457,6 +500,7 @@ async def create_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"حجم هرکدام: {volume_label}\n"
         f"مدت: {draft['duration_days']} روز\n"
         f"نوع: {mode_label}\n"
+        f"HWID: {hwid_label}\n"
         f"پروتکل‌ها: {protocols}",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=confirm_keyboard(),
@@ -483,6 +527,7 @@ async def create_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             duration_days=draft["duration_days"],
             mode=draft["mode"],
             inbounds=draft["inbounds"],
+            hwid_limit=draft.get("hwid_limit"),
         )
         try:
             panel = _services(context).panel(draft["panel"])
@@ -552,6 +597,7 @@ def build_application(services: Services) -> Application:
             MODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_mode)],
             VOLUME: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_volume)],
             DAYS: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_days)],
+            HWID: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_hwid)],
             SEED: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_seed)],
             COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_count)],
             REVIEW: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_confirm)],

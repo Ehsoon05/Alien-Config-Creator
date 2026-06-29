@@ -133,3 +133,29 @@ async def test_easy_panel_can_send_hwid_limit():
         await client.close()
 
     assert payloads[0]["hwid_limit"] == 2
+
+
+@pytest.mark.asyncio
+async def test_easy_panel_create_spec_hwid_overrides_default():
+    payloads = []
+
+    def handler(request: httpx.Request):
+        if request.url.path == "/api/admin/token":
+            return httpx.Response(200, json={"access_token": "token"})
+        payloads.append(__import__("json").loads(request.content))
+        return httpx.Response(201, json={"subscription_url": "https://p.example/sub/1"})
+
+    client = EasyPanelClient(
+        "https://p.example",
+        "admin",
+        "password",
+        group_ids=(1,),
+        hwid_limit=2,
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        await client.create_user(CreateSpec("Alien_4", 30, 30, "on_hold", INBOUNDS, hwid_limit=3))
+    finally:
+        await client.close()
+
+    assert payloads[0]["hwid_limit"] == 3
