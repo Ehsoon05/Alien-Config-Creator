@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import urljoin
 
 import httpx
 
@@ -117,6 +118,9 @@ class MarzbanClient:
 
     async def create_user(self, spec: CreateSpec) -> dict[str, Any]:
         return (await self._request("POST", "/api/user", json=spec.payload())).json()
+
+    def absolute_subscription_url(self, url: str) -> str:
+        return urljoin(f"{self.base_url.rstrip('/')}/", url.strip())
 
 
 class EasyPanelClient(MarzbanClient):

@@ -56,6 +56,9 @@ class Config:
     database_path: Path
     log_level: str
     verify_ssl: bool
+    subscription_public_base_url: str
+    subscription_panel_sync_url: str
+    subscription_panel_sync_token: str
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -107,6 +110,9 @@ class Config:
             database_path=Path(os.getenv("DATABASE_PATH", "data/settings.db")),
             log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
             verify_ssl=_as_bool(os.getenv("VERIFY_SSL", "true")),
+            subscription_public_base_url=os.getenv("SUBSCRIPTION_PUBLIC_BASE_URL", "").strip().rstrip("/"),
+            subscription_panel_sync_url=os.getenv("SUBSCRIPTION_PANEL_SYNC_URL", "").strip(),
+            subscription_panel_sync_token=os.getenv("SUBSCRIPTION_PANEL_SYNC_TOKEN", "").strip(),
         )
         config.validate()
         return config

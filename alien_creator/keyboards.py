@@ -6,6 +6,8 @@ STATUS = "🔌 بررسی اتصال"
 CANCEL = "لغو"
 CONFIRM = "✅ تایید و ساخت"
 USE_DEFAULT = "✅ استفاده از پیش‌فرض"
+YES = "بله"
+NO = "خیر"
 MODE_HOLD = "⏸ شروع از اولین اتصال"
 MODE_DATE = "📅 تاریخ‌دار از زمان ساخت"
 MODE_UNLIMITED = "♾ زمان نامحدود"
@@ -60,6 +62,13 @@ def confirm_keyboard() -> ReplyKeyboardMarkup:
 def default_or_cancel_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [[KeyboardButton(USE_DEFAULT)], [KeyboardButton(CANCEL)]],
+        resize_keyboard=True,
+    )
+
+
+def yes_no_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [[KeyboardButton(YES), KeyboardButton(NO)], [KeyboardButton(CANCEL)]],
         resize_keyboard=True,
     )
 

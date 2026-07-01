@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 from dataclasses import dataclass
+from urllib.parse import quote, urlparse
 
+import httpx
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.error import RetryAfter
@@ -25,6 +28,7 @@ from .keyboards import (
     MODE_DATE,
     MODE_HOLD,
     MODE_UNLIMITED,
+    NO,
     PANEL_ALIEN,
     PANEL_EASY,
     PANEL_MEXICO_HAJMI,
@@ -32,6 +36,7 @@ from .keyboards import (
     SETTINGS,
     STATUS,
     USE_DEFAULT,
+    YES,
     cancel_keyboard,
     confirm_keyboard,
     default_or_cancel_keyboard,
@@ -41,6 +46,7 @@ from .keyboards import (
     mode_keyboard,
     panel_keyboard,
     settings_panel_keyboard,
+    yes_no_keyboard,
 )
 from .marzban import CreateSpec, MarzbanClient, MarzbanError
 from .naming import build_sequence
@@ -48,7 +54,7 @@ from .storage import SettingsStore
 
 logger = logging.getLogger(__name__)
 
-PANEL, MODE, VOLUME, DAYS, HWID, SEED, COUNT, REVIEW = range(8)
+PANEL, MODE, VOLUME, DAYS, HWID, SEED, COUNT, PUBLIC_LINK, REVIEW = range(9)
 
 EASY_PANEL_KEYS = {"easy", "mexico_hajmi", "mexico_namahdod"}
 PANEL_BUTTONS = {
@@ -71,6 +77,43 @@ def _configured_panel_labels(services: "Services") -> dict[str, str]:
         for key in ("alien", "easy", "mexico_hajmi", "mexico_namahdod")
         if key in services.panels
     }
+
+
+def _token_from_subscription_url(url: str) -> str:
+    parsed = urlparse(url.strip())
+    parts = [part for part in parsed.path.split("/") if part]
+    return parts[-1] if parts else secrets.token_urlsafe(18)
+
+
+async def _phantom_subscription_link(
+    services: "Services",
+    *,
+    upstream_url: str,
+    username: str,
+    volume_gb: int,
+) -> str:
+    public_base = services.config.subscription_public_base_url
+    sync_url = services.config.subscription_panel_sync_url
+    sync_token = services.config.subscription_panel_sync_token
+    if not public_base or not sync_url or not sync_token:
+        return upstream_url
+    token = _token_from_subscription_url(upstream_url)
+    payload = {
+        "token": token,
+        "upstream_url": upstream_url,
+        "volume_gb": max(0, int(volume_gb)),
+        "category_key": "creator",
+        "is_sold": False,
+        "service_name": username,
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.post(
+            sync_url,
+            json=payload,
+            headers={"Authorization": f"Bearer {sync_token}"},
+        )
+        response.raise_for_status()
+    return f"{public_base.rstrip('/')}/token/{quote(token, safe='')}"
 
 
 async def _apply_easy_panel_settings(services: "Services", panel_key: str) -> dict:
@@ -474,6 +517,27 @@ async def create_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text(str(exc))
         return SEED
     draft["names"] = names
+    await update.effective_message.reply_text(
+        "برای خروجی‌ها لینک اختصاصی پنل ساب Phantom ساخته شود؟",
+        reply_markup=yes_no_keyboard(),
+    )
+    return PUBLIC_LINK
+
+
+async def create_public_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (update.effective_message.text or "").strip()
+    if text == CANCEL:
+        return await cancel(update, context)
+    if text not in {YES, NO}:
+        await update.effective_message.reply_text("لطفاً یکی از گزینه‌های بله یا خیر را انتخاب کنید.")
+        return PUBLIC_LINK
+    context.user_data["create"]["phantom_public_link"] = text == YES
+    return await _show_create_review(update, context)
+
+
+async def _show_create_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    draft = context.user_data["create"]
+    names = draft["names"]
     mode_label = {
         "on_hold": "شروع از اولین اتصال",
         "date": "تاریخ‌دار",
@@ -501,7 +565,8 @@ async def create_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"مدت: {draft['duration_days']} روز\n"
         f"نوع: {mode_label}\n"
         f"HWID: {hwid_label}\n"
-        f"پروتکل‌ها: {protocols}",
+        f"پروتکل‌ها: {protocols}\n"
+        f"لینک اختصاصی Phantom: {'بله' if draft.get('phantom_public_link') else 'خیر'}",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=confirm_keyboard(),
     )
@@ -536,6 +601,18 @@ async def create_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not subscription_url:
                 failed.append((username, "پنل لینک اشتراک برنگرداند."))
             else:
+                subscription_url = panel.absolute_subscription_url(subscription_url)
+                if draft.get("phantom_public_link"):
+                    try:
+                        subscription_url = await _phantom_subscription_link(
+                            _services(context),
+                            upstream_url=subscription_url,
+                            username=username,
+                            volume_gb=draft["volume_gb"],
+                        )
+                    except httpx.HTTPError as exc:
+                        failed.append((username, f"ساخت لینک اختصاصی Phantom انجام نشد: {exc}"))
+                        continue
                 created.append((username, subscription_url))
         except MarzbanError as exc:
             failed.append((username, str(exc)))
@@ -600,6 +677,7 @@ def build_application(services: Services) -> Application:
             HWID: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_hwid)],
             SEED: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_seed)],
             COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_count)],
+            PUBLIC_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_public_link)],
             REVIEW: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_confirm)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],

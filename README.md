@@ -12,6 +12,7 @@
 - انتخاب فقط پروتکل‌ها و اینباندهای فعال پنل
 - انتخاب پنل مقصد: `Alien` یا `آسان پنل`
 - ساخت آسان پنل روی گروه `MultiLocation` بدون نیاز به انتخاب اینباند
+- تبدیل اختیاری خروجی‌ها به لینک اختصاصی Phantom Subscription Panel
 - ارسال هر نام و لینک اشتراک در یک پیام جداگانه
 - دسترسی محدود به شناسه‌های عددی ادمین
 - سرویس و آپدیتر مستقل systemd
@@ -35,6 +36,14 @@ cp .env.example .env
 
 اطلاعات حساس را در `.env` یا `/etc/alien-config-creator.env` قرار دهید و هرگز
 آن‌ها را داخل GitHub کامیت نکنید.
+
+برای ساخت لینک اختصاصی Phantom، این مقدارها را هم تنظیم کنید:
+
+```env
+SUBSCRIPTION_PUBLIC_BASE_URL=https://api.phantomhubs.shop
+SUBSCRIPTION_PANEL_SYNC_URL=https://api.phantomhubs.shop/internal/configs
+SUBSCRIPTION_PANEL_SYNC_TOKEN=...
+```
 
 ## نام‌گذاری گروهی
 
