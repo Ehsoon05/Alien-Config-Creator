@@ -32,7 +32,7 @@ class CreateSpec:
             "proxies": {protocol: {} for protocol in protocols},
             "inbounds": self.inbounds,
         }
-        if self.mode == "unlimited":
+        if self.duration_days <= 0 or self.mode == "unlimited":
             payload.update(
                 {
                     "expire": 0,

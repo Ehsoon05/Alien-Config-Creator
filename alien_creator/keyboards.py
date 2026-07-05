@@ -10,7 +10,6 @@ YES = "بله"
 NO = "خیر"
 MODE_HOLD = "⏸ شروع از اولین اتصال"
 MODE_DATE = "📅 تاریخ‌دار از زمان ساخت"
-MODE_UNLIMITED = "♾ زمان نامحدود"
 PANEL_ALIEN = "👽 Alien"
 PANEL_EASY = "⚡ آسان پنل"
 PANEL_MEXICO_HAJMI = "🇲🇽 Mexico Hajmi"
@@ -34,7 +33,7 @@ def cancel_keyboard() -> ReplyKeyboardMarkup:
 
 def mode_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [[KeyboardButton(MODE_HOLD)], [KeyboardButton(MODE_DATE)], [KeyboardButton(MODE_UNLIMITED)], [KeyboardButton(CANCEL)]],
+        [[KeyboardButton(MODE_HOLD)], [KeyboardButton(MODE_DATE)], [KeyboardButton(CANCEL)]],
         resize_keyboard=True,
     )
 

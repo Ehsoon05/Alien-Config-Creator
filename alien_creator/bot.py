@@ -27,7 +27,6 @@ from .keyboards import (
     CREATE,
     MODE_DATE,
     MODE_HOLD,
-    MODE_UNLIMITED,
     NO,
     PANEL_ALIEN,
     PANEL_EASY,
@@ -406,7 +405,7 @@ async def create_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def create_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_message.text == CANCEL:
         return await cancel(update, context)
-    modes = {MODE_HOLD: "on_hold", MODE_DATE: "date", MODE_UNLIMITED: "unlimited"}
+    modes = {MODE_HOLD: "on_hold", MODE_DATE: "date"}
     mode = modes.get(update.effective_message.text)
     if not mode:
         await update.effective_message.reply_text("یکی از گزینه‌های روی کیبورد را انتخاب کنید.")
@@ -431,7 +430,7 @@ async def create_volume(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("حجم نمی‌تواند منفی باشد.")
         return VOLUME
     context.user_data["create"]["volume_gb"] = volume
-    await update.effective_message.reply_text("مدت اعتبار را به روز وارد کنید.")
+    await update.effective_message.reply_text("مدت اعتبار را به روز وارد کنید. برای زمان نامحدود عدد 0 را بفرستید.")
     return DAYS
 
 
@@ -443,8 +442,8 @@ async def create_days(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except ValueError:
         await update.effective_message.reply_text("مدت باید عدد صحیح باشد.")
         return DAYS
-    if days <= 0:
-        await update.effective_message.reply_text("مدت باید بیشتر از صفر باشد.")
+    if days < 0:
+        await update.effective_message.reply_text("مدت نمی‌تواند منفی باشد. برای زمان نامحدود عدد 0 را بفرستید.")
         return DAYS
     context.user_data["create"]["duration_days"] = days
     draft = context.user_data["create"]
@@ -543,7 +542,10 @@ async def _show_create_review(update: Update, context: ContextTypes.DEFAULT_TYPE
         "date": "تاریخ‌دار",
         "unlimited": "زمان نامحدود",
     }.get(draft["mode"], draft["mode"])
+    if draft["duration_days"] == 0:
+        mode_label = "زمان نامحدود"
     volume_label = "نامحدود" if draft["volume_gb"] == 0 else f"{draft['volume_gb']} گیگ"
+    duration_label = "نامحدود" if draft["duration_days"] == 0 else f"{draft['duration_days']} روز"
     panel_label = PANEL_LABELS.get(draft["panel"], draft["panel"])
     protocols = (
         "، ".join(protocol.upper() for protocol in draft["inbounds"])
@@ -562,7 +564,7 @@ async def _show_create_review(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"نام‌ها: `{names[0]}` تا `{names[-1]}`\n"
         f"تعداد: {len(names)}\n"
         f"حجم هرکدام: {volume_label}\n"
-        f"مدت: {draft['duration_days']} روز\n"
+        f"مدت: {duration_label}\n"
         f"نوع: {mode_label}\n"
         f"HWID: {hwid_label}\n"
         f"پروتکل‌ها: {protocols}\n"
