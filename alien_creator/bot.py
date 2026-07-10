@@ -53,7 +53,7 @@ from .storage import SettingsStore
 
 logger = logging.getLogger(__name__)
 
-PANEL, MODE, VOLUME, DAYS, HWID, SEED, COUNT, PUBLIC_LINK, REVIEW = range(9)
+PANEL, MODE, VOLUME, DAYS, HWID, SEED, COUNT, PUBLIC_LINK, SUB_DEVICE_LIMIT, REVIEW = range(10)
 
 EASY_PANEL_KEYS = {"easy", "mexico_hajmi", "mexico_namahdod"}
 PANEL_BUTTONS = {
@@ -90,6 +90,7 @@ async def _phantom_subscription_link(
     upstream_url: str,
     username: str,
     volume_gb: int,
+    device_limit: int,
 ) -> str:
     public_base = services.config.subscription_public_base_url
     sync_url = services.config.subscription_panel_sync_url
@@ -97,14 +98,13 @@ async def _phantom_subscription_link(
     if not public_base or not sync_url or not sync_token:
         return upstream_url
     token = _token_from_subscription_url(upstream_url)
-    payload = {
-        "token": token,
-        "upstream_url": upstream_url,
-        "volume_gb": max(0, int(volume_gb)),
-        "category_key": "creator",
-        "is_sold": False,
-        "service_name": username,
-    }
+    payload = _phantom_subscription_payload(
+        token=token,
+        upstream_url=upstream_url,
+        username=username,
+        volume_gb=volume_gb,
+        device_limit=device_limit,
+    )
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.post(
             sync_url,
@@ -113,6 +113,25 @@ async def _phantom_subscription_link(
         )
         response.raise_for_status()
     return f"{public_base.rstrip('/')}/token/{quote(token, safe='')}"
+
+
+def _phantom_subscription_payload(
+    *,
+    token: str,
+    upstream_url: str,
+    username: str,
+    volume_gb: int,
+    device_limit: int,
+) -> dict:
+    return {
+        "token": token,
+        "upstream_url": upstream_url,
+        "volume_gb": max(0, int(volume_gb)),
+        "category_key": "creator",
+        "is_sold": False,
+        "service_name": username,
+        "device_limit": max(0, int(device_limit)),
+    }
 
 
 async def _apply_easy_panel_settings(services: "Services", panel_key: str) -> dict:
@@ -531,6 +550,32 @@ async def create_public_link(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.effective_message.reply_text("لطفاً یکی از گزینه‌های بله یا خیر را انتخاب کنید.")
         return PUBLIC_LINK
     context.user_data["create"]["phantom_public_link"] = text == YES
+    if text == YES:
+        await update.effective_message.reply_text(
+            "محدودیت کاربر/دستگاه لینک پنل ساب را وارد کنید.\n"
+            "`0` یعنی نامحدود و بدون شمارش.\n"
+            "مثال: `2`",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=cancel_keyboard(),
+        )
+        return SUB_DEVICE_LIMIT
+    context.user_data["create"]["subscription_device_limit"] = 0
+    return await _show_create_review(update, context)
+
+
+async def create_subscription_device_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (update.effective_message.text or "").strip()
+    if text == CANCEL:
+        return await cancel(update, context)
+    try:
+        value = int(text)
+    except ValueError:
+        await update.effective_message.reply_text("محدودیت کاربر باید عدد صحیح باشد. `0` یعنی نامحدود.")
+        return SUB_DEVICE_LIMIT
+    if value < 0:
+        await update.effective_message.reply_text("محدودیت کاربر نمی‌تواند منفی باشد. `0` یعنی نامحدود.")
+        return SUB_DEVICE_LIMIT
+    context.user_data["create"]["subscription_device_limit"] = value
     return await _show_create_review(update, context)
 
 
@@ -558,6 +603,8 @@ async def _show_create_review(update: Update, context: ContextTypes.DEFAULT_TYPE
         if draft["panel"] in EASY_PANEL_KEYS and hwid_value is None
         else str(hwid_value or "-")
     )
+    subscription_limit = int(draft.get("subscription_device_limit", 0) or 0)
+    subscription_limit_label = "نامحدود / بدون شمارش" if subscription_limit <= 0 else f"{subscription_limit} کاربر/دستگاه"
     await update.effective_message.reply_text(
         "پیش‌نمایش ساخت:\n\n"
         f"پنل: {panel_label}\n"
@@ -568,7 +615,8 @@ async def _show_create_review(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"نوع: {mode_label}\n"
         f"HWID: {hwid_label}\n"
         f"پروتکل‌ها: {protocols}\n"
-        f"لینک اختصاصی Phantom: {'بله' if draft.get('phantom_public_link') else 'خیر'}",
+        f"لینک اختصاصی Phantom: {'بله' if draft.get('phantom_public_link') else 'خیر'}\n"
+        f"محدودیت کاربر لینک ساب: {subscription_limit_label}",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=confirm_keyboard(),
     )
@@ -611,6 +659,7 @@ async def create_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             upstream_url=subscription_url,
                             username=username,
                             volume_gb=draft["volume_gb"],
+                            device_limit=int(draft.get("subscription_device_limit", 0) or 0),
                         )
                     except httpx.HTTPError as exc:
                         failed.append((username, f"ساخت لینک اختصاصی Phantom انجام نشد: {exc}"))
@@ -680,6 +729,7 @@ def build_application(services: Services) -> Application:
             SEED: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_seed)],
             COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_count)],
             PUBLIC_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_public_link)],
+            SUB_DEVICE_LIMIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_subscription_device_limit)],
             REVIEW: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_confirm)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],

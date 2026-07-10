@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
+from alien_creator.bot import _phantom_subscription_payload
 from alien_creator.marzban import CreateSpec, EasyPanelClient, MarzbanClient
 
 
@@ -23,6 +24,18 @@ def test_on_hold_payload():
     assert payload["data_limit"] == 30 * 1024**3
     assert payload["proxies"] == {"vless": {}}
     assert "note" not in payload
+
+
+def test_phantom_subscription_payload_includes_device_limit():
+    payload = _phantom_subscription_payload(
+        token="abc",
+        upstream_url="https://panel.example/sub/abc",
+        username="Alien_1",
+        volume_gb=30,
+        device_limit=2,
+    )
+    assert payload["device_limit"] == 2
+    assert payload["service_name"] == "Alien_1"
 
 
 def test_dated_payload():
