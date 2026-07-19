@@ -32,6 +32,7 @@ from .keyboards import (
     PANEL_EASY,
     PANEL_MEXICO_HAJMI,
     PANEL_MEXICO_NAMAHDOD,
+    PANEL_SVN,
     SETTINGS,
     STATUS,
     USE_DEFAULT,
@@ -56,26 +57,33 @@ logger = logging.getLogger(__name__)
 PANEL, MODE, VOLUME, DAYS, HWID, SEED, COUNT, PUBLIC_LINK, SUB_DEVICE_LIMIT, REVIEW = range(10)
 
 EASY_PANEL_KEYS = {"easy", "mexico_hajmi", "mexico_namahdod"}
+PANEL_ORDER = ("alien", "easy", "mexico_hajmi", "mexico_namahdod", "svn")
 PANEL_BUTTONS = {
     PANEL_ALIEN: "alien",
     PANEL_EASY: "easy",
     PANEL_MEXICO_HAJMI: "mexico_hajmi",
     PANEL_MEXICO_NAMAHDOD: "mexico_namahdod",
+    PANEL_SVN: "svn",
 }
 PANEL_LABELS = {
     "alien": "Alien",
     "easy": "آسان پنل",
     "mexico_hajmi": "Mexico Hajmi",
     "mexico_namahdod": "Mexico Namahdod",
+    "svn": "SVN",
 }
 
 
 def _configured_panel_labels(services: "Services") -> dict[str, str]:
     return {
         key: PANEL_LABELS.get(key, key)
-        for key in ("alien", "easy", "mexico_hajmi", "mexico_namahdod")
+        for key in PANEL_ORDER
         if key in services.panels
     }
+
+
+def _selected_inbounds_key(panel_key: str) -> str:
+    return "selected_inbounds" if panel_key == "alien" else f"selected_inbounds:{panel_key}"
 
 
 def _token_from_subscription_url(url: str) -> str:
@@ -187,17 +195,25 @@ async def connection_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     try:
         services = _services(context)
-        alien = await services.panel("alien").get_inbounds()
-        easy_status = []
-        for panel_key in sorted(key for key in services.panels if key in EASY_PANEL_KEYS):
-            await services.panel(panel_key).authenticate()
-            easy_status.append(PANEL_LABELS.get(panel_key, panel_key))
-        total = sum(len(items) for items in alien.values())
-        protocols = "، ".join(name.upper() for name in sorted(alien)) or "هیچ‌کدام"
+        marzban_status = []
+        grouped_status = []
+        for panel_key in PANEL_ORDER:
+            if panel_key not in services.panels:
+                continue
+            panel = services.panel(panel_key)
+            label = PANEL_LABELS.get(panel_key, panel_key)
+            if panel_key in EASY_PANEL_KEYS:
+                await panel.authenticate()
+                grouped_status.append(label)
+                continue
+            inbounds = await panel.get_inbounds()
+            total = sum(len(items) for items in inbounds.values())
+            protocols = "، ".join(name.upper() for name in sorted(inbounds)) or "هیچ‌کدام"
+            marzban_status.append(f"{label}: {protocols} | {total} اینباند")
         await update.effective_message.reply_text(
             "✅ اتصال پنل‌ها برقرار است.\n\n"
-            f"Alien: {protocols} | {total} اینباند\n"
-            f"Pasarguard: {', '.join(easy_status) or '-'}",
+            f"{chr(10).join(marzban_status) or 'Marzban: -'}\n"
+            f"Pasarguard/Easy: {', '.join(grouped_status) or '-'}",
             reply_markup=main_keyboard(),
         )
     except MarzbanError as exc:
@@ -241,11 +257,12 @@ async def settings_panel_callback(update: Update, context: ContextTypes.DEFAULT_
         return
 
     try:
-        inbounds = await services.panel("alien").get_inbounds()
+        inbounds = await services.panel(panel_key).get_inbounds()
     except MarzbanError as exc:
         await query.edit_message_text(f"خطا در دریافت اینباندها:\n{exc}")
         return
-    selected = await services.store.get("selected_inbounds", {})
+    selected = await services.store.get(_selected_inbounds_key(panel_key), {})
+    context.user_data["settings_panel_key"] = panel_key
     context.user_data["available_inbounds"] = inbounds
     context.user_data["selected_inbounds"] = selected
     await query.edit_message_text(
@@ -340,7 +357,8 @@ async def inbound_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not selected:
             await query.answer("حداقل یک اینباند انتخاب کنید.", show_alert=True)
             return
-        await _services(context).store.set("selected_inbounds", selected)
+        panel_key = context.user_data.get("settings_panel_key", "alien")
+        await _services(context).store.set(_selected_inbounds_key(panel_key), selected)
         await query.edit_message_text("✅ تنظیمات اینباندها ذخیره شد.")
         await query.message.reply_text("منوی اصلی", reply_markup=main_keyboard())
         return
@@ -388,9 +406,9 @@ async def create_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return MODE
 
-    selected = await services.store.get("selected_inbounds", {})
+    selected = await services.store.get(_selected_inbounds_key(panel_key), {})
     try:
-        available = await services.panel("alien").get_inbounds()
+        available = await services.panel(panel_key).get_inbounds()
     except MarzbanError as exc:
         await update.effective_message.reply_text(
             f"دریافت اینباندهای فعال ممکن نبود:\n{exc}",
@@ -406,7 +424,7 @@ async def create_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for protocol, tags in selected.items()
     }
     selected = {protocol: tags for protocol, tags in selected.items() if tags}
-    await services.store.set("selected_inbounds", selected)
+    await services.store.set(_selected_inbounds_key(panel_key), selected)
     if not selected:
         await update.effective_message.reply_text(
             "ابتدا از بخش تنظیمات حداقل یک اینباند را انتخاب کنید.",
@@ -594,7 +612,7 @@ async def _show_create_review(update: Update, context: ContextTypes.DEFAULT_TYPE
     panel_label = PANEL_LABELS.get(draft["panel"], draft["panel"])
     protocols = (
         "، ".join(protocol.upper() for protocol in draft["inbounds"])
-        if draft["panel"] == "alien"
+        if draft["panel"] not in EASY_PANEL_KEYS
         else "MultiLocation (پیش‌فرض پنل)"
     )
     hwid_value = draft.get("hwid_limit")

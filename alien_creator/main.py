@@ -51,6 +51,13 @@ def main() -> None:
             hwid_limit=config.mexico_namahdod_panel_hwid_limit,
             verify_ssl=config.verify_ssl,
         )
+    if config.svn_panel_url:
+        panels["svn"] = MarzbanClient(
+            config.svn_panel_url,
+            config.svn_panel_username,
+            config.svn_panel_password,
+            verify_ssl=config.verify_ssl,
+        )
     application = build_application(Services(config, store, panels))
 
     async def post_init(_application):
@@ -84,6 +91,26 @@ def main() -> None:
                     for protocol, entries in inbounds.items()
                 },
             )
+        for panel_key, panel in panels.items():
+            if panel_key == "alien" or panel_key in {"easy", "mexico_hajmi", "mexico_namahdod"}:
+                continue
+            selected_key = f"selected_inbounds:{panel_key}"
+            selected = await store.get(selected_key, {})
+            if selected:
+                continue
+            try:
+                panel_inbounds = await panel.get_inbounds()
+            except MarzbanError as exc:
+                logger.warning("%s panel inbound preload failed: %s", panel_key, exc)
+                continue
+            if panel_inbounds:
+                await store.set(
+                    selected_key,
+                    {
+                        protocol: [entry["tag"] for entry in entries]
+                        for protocol, entries in panel_inbounds.items()
+                    },
+                )
         await _application.bot.set_my_commands(
             [
                 BotCommand("start", "منوی اصلی"),

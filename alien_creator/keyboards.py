@@ -14,6 +14,7 @@ PANEL_ALIEN = "👽 Alien"
 PANEL_EASY = "⚡ آسان پنل"
 PANEL_MEXICO_HAJMI = "🇲🇽 Mexico Hajmi"
 PANEL_MEXICO_NAMAHDOD = "🇲🇽 Mexico Namahdod"
+PANEL_SVN = "SVN"
 BACK = "بازگشت"
 
 
@@ -45,6 +46,7 @@ def panel_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(PANEL_EASY)],
             [KeyboardButton(PANEL_MEXICO_HAJMI)],
             [KeyboardButton(PANEL_MEXICO_NAMAHDOD)],
+            [KeyboardButton(PANEL_SVN)],
             [KeyboardButton(CANCEL)],
         ],
         resize_keyboard=True,
