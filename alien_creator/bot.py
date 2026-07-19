@@ -99,6 +99,7 @@ async def _phantom_subscription_link(
     username: str,
     volume_gb: int,
     device_limit: int,
+    panel_key: str,
 ) -> str:
     public_base = services.config.subscription_public_base_url
     sync_url = services.config.subscription_panel_sync_url
@@ -112,6 +113,7 @@ async def _phantom_subscription_link(
         username=username,
         volume_gb=volume_gb,
         device_limit=device_limit,
+        panel_key=panel_key,
     )
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.post(
@@ -130,6 +132,7 @@ def _phantom_subscription_payload(
     username: str,
     volume_gb: int,
     device_limit: int,
+    panel_key: str,
 ) -> dict:
     return {
         "token": token,
@@ -139,6 +142,7 @@ def _phantom_subscription_payload(
         "is_sold": False,
         "service_name": username,
         "device_limit": max(0, int(device_limit)),
+        "info_proxies_enabled": panel_key == "svn",
     }
 
 
@@ -678,6 +682,7 @@ async def create_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             username=username,
                             volume_gb=draft["volume_gb"],
                             device_limit=int(draft.get("subscription_device_limit", 0) or 0),
+                            panel_key=draft["panel"],
                         )
                     except httpx.HTTPError as exc:
                         failed.append((username, f"ساخت لینک اختصاصی Phantom انجام نشد: {exc}"))
