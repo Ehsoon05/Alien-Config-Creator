@@ -141,6 +141,7 @@ def _phantom_subscription_payload(
         "category_key": "creator",
         "is_sold": False,
         "service_name": username,
+        "panel_username": username,
         "device_limit": max(0, int(device_limit)),
         "info_proxies_enabled": panel_key == "svn",
     }
