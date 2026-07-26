@@ -54,7 +54,19 @@ from .storage import SettingsStore
 
 logger = logging.getLogger(__name__)
 
-PANEL, MODE, VOLUME, DAYS, HWID, SEED, COUNT, PUBLIC_LINK, SUB_DEVICE_LIMIT, REVIEW = range(10)
+(
+    PANEL,
+    VOLUME,
+    MODE,
+    DAYS,
+    HWID,
+    SEED,
+    COUNT,
+    PUBLIC_LINK,
+    SUB_ADVANCED_CHOICE,
+    SUB_ADVANCED_VALUES,
+    REVIEW,
+) = range(11)
 
 EASY_PANEL_KEYS = {"easy", "mexico_hajmi", "mexico_namahdod"}
 PANEL_ORDER = ("alien", "easy", "mexico_hajmi", "mexico_namahdod", "svn")
@@ -98,7 +110,7 @@ async def _phantom_subscription_link(
     upstream_url: str,
     username: str,
     volume_gb: int,
-    device_limit: int,
+    subscription_options: dict,
     panel_key: str,
 ) -> str:
     public_base = services.config.subscription_public_base_url
@@ -112,7 +124,7 @@ async def _phantom_subscription_link(
         upstream_url=upstream_url,
         username=username,
         volume_gb=volume_gb,
-        device_limit=device_limit,
+        subscription_options=subscription_options,
         panel_key=panel_key,
     )
     async with httpx.AsyncClient(timeout=15.0) as client:
@@ -131,10 +143,12 @@ def _phantom_subscription_payload(
     upstream_url: str,
     username: str,
     volume_gb: int,
-    device_limit: int,
+    subscription_options: dict | None = None,
     panel_key: str,
 ) -> dict:
-    return {
+    subscription_options = subscription_options or {}
+    device_limit = int(subscription_options.get("device_limit", 0) or 0)
+    payload = {
         "token": token,
         "upstream_url": upstream_url,
         "volume_gb": max(0, int(volume_gb)),
@@ -143,8 +157,104 @@ def _phantom_subscription_payload(
         "service_name": username,
         "panel_username": username,
         "device_limit": max(0, int(device_limit)),
+        "show_header": bool(subscription_options.get("show_header", True)),
+        "show_config_preview": bool(subscription_options.get("show_config_preview", True)),
+        "info_proxies_enabled": bool(
+            subscription_options.get("info_proxies_enabled", panel_key == "svn")
+        ),
+    }
+    profile_title = str(subscription_options.get("profile_title", "") or "").strip()
+    channel_handle = str(subscription_options.get("channel_handle", "") or "").strip()
+    if profile_title:
+        payload["profile_title"] = profile_title
+    if channel_handle:
+        payload["channel_handle"] = channel_handle
+    return payload
+
+
+def _default_subscription_options(panel_key: str) -> dict:
+    return {
+        "profile_title": "",
+        "device_limit": 0,
+        "channel_handle": "",
+        "show_header": True,
+        "show_config_preview": True,
         "info_proxies_enabled": panel_key == "svn",
     }
+
+
+def _truthy_fa(value: str) -> bool:
+    normalized = value.strip().casefold()
+    if normalized in {"بله", "بلی", "آره", "اره", "روشن", "فعال", "yes", "y", "true", "1", "on"}:
+        return True
+    if normalized in {"خیر", "نه", "خاموش", "غیرفعال", "غيرفعال", "no", "n", "false", "0", "off"}:
+        return False
+    raise ValueError
+
+
+def _empty_if_dash(value: str) -> str:
+    value = value.strip()
+    return "" if value in {"", "-", "ندارد", "خالی"} else value
+
+
+def _advanced_subscription_prompt(defaults: dict) -> str:
+    info_default = "بله" if defaults.get("info_proxies_enabled") else "خیر"
+    return (
+        "تنظیمات تکمیلی پنل ساب را در همین قالب بفرستید.\n"
+        "اگر موردی را نمی‌خواهید، جلویش `-` بگذارید.\n\n"
+        "نام نمایشی داخل برنامه‌ها: -\n"
+        "محدودیت کاربر: 0\n"
+        "کانال/پشتیبانی اختصاصی: -\n"
+        "نمایش هدر سایت: بله\n"
+        "نمایش کانفیگ‌های اشتراک: بله\n"
+        f"افزودن کانفیگ‌های اطلاعاتی: {info_default}"
+    )
+
+
+def _parse_advanced_subscription_options(text: str, defaults: dict) -> dict:
+    aliases = {
+        "نام نمایشی داخل برنامه‌ها": "profile_title",
+        "نام نمایشی داخل برنامه ها": "profile_title",
+        "نام نمایشی": "profile_title",
+        "محدودیت کاربر": "device_limit",
+        "محدودیت دستگاه": "device_limit",
+        "کانال/پشتیبانی اختصاصی": "channel_handle",
+        "کانال اختصاصی": "channel_handle",
+        "پشتیبانی اختصاصی": "channel_handle",
+        "نمایش هدر سایت": "show_header",
+        "نمایش هدر": "show_header",
+        "نمایش کانفیگ‌های اشتراک": "show_config_preview",
+        "نمایش کانفیگ های اشتراک": "show_config_preview",
+        "نمایش کانفیگ‌ها": "show_config_preview",
+        "نمایش کانفیگ ها": "show_config_preview",
+        "افزودن کانفیگ‌های اطلاعاتی": "info_proxies_enabled",
+        "افزودن کانفیگ های اطلاعاتی": "info_proxies_enabled",
+        "کانفیگ‌های اطلاعاتی": "info_proxies_enabled",
+        "کانفیگ های اطلاعاتی": "info_proxies_enabled",
+    }
+    options = dict(defaults)
+    seen = set()
+    for raw_line in text.splitlines():
+        if ":" not in raw_line:
+            continue
+        raw_key, raw_value = raw_line.split(":", 1)
+        key = aliases.get(raw_key.strip())
+        if not key:
+            continue
+        value = raw_value.strip()
+        seen.add(key)
+        if key in {"profile_title", "channel_handle"}:
+            options[key] = _empty_if_dash(value)
+        elif key == "device_limit":
+            numeric_value = 0 if value.strip() in {"", "-", "ندارد", "خالی"} else int(value)
+            if numeric_value < 0:
+                raise ValueError("محدودیت کاربر نمی‌تواند منفی باشد.")
+            options[key] = numeric_value
+        else:
+            options[key] = _truthy_fa(value)
+    if not seen:
+        raise ValueError("هیچ فیلد معتبری در متن پیدا نشد.")
+    return options
 
 
 async def _apply_easy_panel_settings(services: "Services", panel_key: str) -> dict:
@@ -406,10 +516,10 @@ async def create_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if panel_key in EASY_PANEL_KEYS:
         context.user_data["create"]["inbounds"] = {}
         await update.effective_message.reply_text(
-            "نوع زمان‌بندی را انتخاب کنید:",
-            reply_markup=mode_keyboard(),
+            "حجم هر کانفیگ را به گیگ وارد کنید. برای نامحدود عدد 0 را بفرستید.",
+            reply_markup=cancel_keyboard(),
         )
-        return MODE
+        return VOLUME
 
     selected = await services.store.get(_selected_inbounds_key(panel_key), {})
     try:
@@ -438,22 +548,6 @@ async def create_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     context.user_data["create"]["inbounds"] = selected
     await update.effective_message.reply_text(
-        "نوع زمان‌بندی را انتخاب کنید:",
-        reply_markup=mode_keyboard(),
-    )
-    return MODE
-
-
-async def create_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_message.text == CANCEL:
-        return await cancel(update, context)
-    modes = {MODE_HOLD: "on_hold", MODE_DATE: "date"}
-    mode = modes.get(update.effective_message.text)
-    if not mode:
-        await update.effective_message.reply_text("یکی از گزینه‌های روی کیبورد را انتخاب کنید.")
-        return MODE
-    context.user_data["create"]["mode"] = mode
-    await update.effective_message.reply_text(
         "حجم هر کانفیگ را به گیگ وارد کنید. برای نامحدود عدد 0 را بفرستید.",
         reply_markup=cancel_keyboard(),
     )
@@ -472,7 +566,26 @@ async def create_volume(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("حجم نمی‌تواند منفی باشد.")
         return VOLUME
     context.user_data["create"]["volume_gb"] = volume
-    await update.effective_message.reply_text("مدت اعتبار را به روز وارد کنید. برای زمان نامحدود عدد 0 را بفرستید.")
+    await update.effective_message.reply_text(
+        "نوع زمان‌بندی را انتخاب کنید:",
+        reply_markup=mode_keyboard(),
+    )
+    return MODE
+
+
+async def create_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_message.text == CANCEL:
+        return await cancel(update, context)
+    modes = {MODE_HOLD: "on_hold", MODE_DATE: "date"}
+    mode = modes.get(update.effective_message.text)
+    if not mode:
+        await update.effective_message.reply_text("یکی از گزینه‌های روی کیبورد را انتخاب کنید.")
+        return MODE
+    context.user_data["create"]["mode"] = mode
+    await update.effective_message.reply_text(
+        "مدت اعتبار را به روز وارد کنید. برای زمان نامحدود عدد 0 را بفرستید.",
+        reply_markup=cancel_keyboard(),
+    )
     return DAYS
 
 
@@ -524,9 +637,10 @@ async def create_hwid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _ask_seed(update: Update):
     await update.effective_message.reply_text(
-        "نام کانفیگ اول را بفرستید. نام باید با عدد تمام شود.\n"
-        "مثال: `PhantomHubs_Vpn_1`\n\n"
-        "خط تیره به‌صورت خودکار به زیرخط تبدیل می‌شود.",
+        "نام کانفیگ اول را بفرستید.\n\n"
+        "اگر فقط یک کانفیگ می‌سازید، همان اسم دقیق ساخته می‌شود و عدد آخر لازم نیست.\n"
+        "اگر چندتایی می‌سازید، نام باید با عدد تمام شود تا همان عدد زیاد شود.\n"
+        "مثال: `PhantomHubs_Vpn_1` یا `PhantomExpress10GB-VIP1`",
         parse_mode=ParseMode.MARKDOWN,
     )
     return SEED
@@ -575,30 +689,54 @@ async def create_public_link(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data["create"]["phantom_public_link"] = text == YES
     if text == YES:
         await update.effective_message.reply_text(
-            "محدودیت کاربر/دستگاه لینک پنل ساب را وارد کنید.\n"
-            "`0` یعنی نامحدود و بدون شمارش.\n"
-            "مثال: `2`",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=cancel_keyboard(),
+            "تنظیمات تکمیلی پنل ساب را می‌خواهید وارد کنید؟\n\n"
+            "اگر خیر را بزنید، لینک با تنظیمات سریع ساخته می‌شود:\n"
+            "محدودیت کاربر 0، هدر روشن، نمایش کانفیگ‌ها روشن، و کانفیگ‌های اطلاعاتی فقط برای SVN روشن.",
+            reply_markup=yes_no_keyboard(),
         )
-        return SUB_DEVICE_LIMIT
-    context.user_data["create"]["subscription_device_limit"] = 0
+        return SUB_ADVANCED_CHOICE
+    context.user_data["create"]["subscription_options"] = _default_subscription_options(
+        context.user_data["create"]["panel"]
+    )
     return await _show_create_review(update, context)
 
 
-async def create_subscription_device_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def create_subscription_advanced_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.effective_message.text or "").strip()
     if text == CANCEL:
         return await cancel(update, context)
+    if text not in {YES, NO}:
+        await update.effective_message.reply_text("لطفاً یکی از گزینه‌های بله یا خیر را انتخاب کنید.")
+        return SUB_ADVANCED_CHOICE
+    draft = context.user_data["create"]
+    defaults = _default_subscription_options(draft["panel"])
+    if text == NO:
+        draft["subscription_options"] = defaults
+        return await _show_create_review(update, context)
+    await update.effective_message.reply_text(
+        _advanced_subscription_prompt(defaults),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=cancel_keyboard(),
+    )
+    return SUB_ADVANCED_VALUES
+
+
+async def create_subscription_advanced_values(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (update.effective_message.text or "").strip()
+    if text == CANCEL:
+        return await cancel(update, context)
+    draft = context.user_data["create"]
+    defaults = _default_subscription_options(draft["panel"])
     try:
-        value = int(text)
-    except ValueError:
-        await update.effective_message.reply_text("محدودیت کاربر باید عدد صحیح باشد. `0` یعنی نامحدود.")
-        return SUB_DEVICE_LIMIT
-    if value < 0:
-        await update.effective_message.reply_text("محدودیت کاربر نمی‌تواند منفی باشد. `0` یعنی نامحدود.")
-        return SUB_DEVICE_LIMIT
-    context.user_data["create"]["subscription_device_limit"] = value
+        draft["subscription_options"] = _parse_advanced_subscription_options(text, defaults)
+    except (ValueError, TypeError) as exc:
+        message = str(exc) or "تنظیمات تکمیلی معتبر نیست."
+        await update.effective_message.reply_text(
+            f"{message}\n\n{_advanced_subscription_prompt(defaults)}",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=cancel_keyboard(),
+        )
+        return SUB_ADVANCED_VALUES
     return await _show_create_review(update, context)
 
 
@@ -626,12 +764,15 @@ async def _show_create_review(update: Update, context: ContextTypes.DEFAULT_TYPE
         if draft["panel"] in EASY_PANEL_KEYS and hwid_value is None
         else str(hwid_value or "-")
     )
-    subscription_limit = int(draft.get("subscription_device_limit", 0) or 0)
+    subscription_options = draft.get("subscription_options") or _default_subscription_options(draft["panel"])
+    subscription_limit = int(subscription_options.get("device_limit", 0) or 0)
     subscription_limit_label = "نامحدود / بدون شمارش" if subscription_limit <= 0 else f"{subscription_limit} کاربر/دستگاه"
+    profile_title = subscription_options.get("profile_title") or "-"
+    channel_handle = subscription_options.get("channel_handle") or "-"
     await update.effective_message.reply_text(
         "پیش‌نمایش ساخت:\n\n"
         f"پنل: {panel_label}\n"
-        f"نام‌ها: `{names[0]}` تا `{names[-1]}`\n"
+        f"نام‌ها: {names[0]} تا {names[-1]}\n"
         f"تعداد: {len(names)}\n"
         f"حجم هرکدام: {volume_label}\n"
         f"مدت: {duration_label}\n"
@@ -639,8 +780,12 @@ async def _show_create_review(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"HWID: {hwid_label}\n"
         f"پروتکل‌ها: {protocols}\n"
         f"لینک اختصاصی Phantom: {'بله' if draft.get('phantom_public_link') else 'خیر'}\n"
-        f"محدودیت کاربر لینک ساب: {subscription_limit_label}",
-        parse_mode=ParseMode.MARKDOWN,
+        f"نام نمایشی داخل برنامه‌ها: {profile_title}\n"
+        f"محدودیت کاربر لینک ساب: {subscription_limit_label}\n"
+        f"کانال/پشتیبانی اختصاصی: {channel_handle}\n"
+        f"نمایش هدر سایت: {'روشن' if subscription_options.get('show_header') else 'خاموش'}\n"
+        f"نمایش کانفیگ‌های اشتراک: {'روشن' if subscription_options.get('show_config_preview') else 'خاموش'}\n"
+        f"کانفیگ‌های اطلاعاتی: {'روشن' if subscription_options.get('info_proxies_enabled') else 'خاموش'}",
         reply_markup=confirm_keyboard(),
     )
     return REVIEW
@@ -682,7 +827,8 @@ async def create_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             upstream_url=subscription_url,
                             username=username,
                             volume_gb=draft["volume_gb"],
-                            device_limit=int(draft.get("subscription_device_limit", 0) or 0),
+                            subscription_options=draft.get("subscription_options")
+                            or _default_subscription_options(draft["panel"]),
                             panel_key=draft["panel"],
                         )
                     except httpx.HTTPError as exc:
@@ -753,7 +899,8 @@ def build_application(services: Services) -> Application:
             SEED: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_seed)],
             COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_count)],
             PUBLIC_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_public_link)],
-            SUB_DEVICE_LIMIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_subscription_device_limit)],
+            SUB_ADVANCED_CHOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_subscription_advanced_choice)],
+            SUB_ADVANCED_VALUES: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_subscription_advanced_values)],
             REVIEW: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_confirm)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],

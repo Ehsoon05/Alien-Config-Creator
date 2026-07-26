@@ -32,10 +32,35 @@ def test_phantom_subscription_payload_includes_device_limit():
         upstream_url="https://panel.example/sub/abc",
         username="Alien_1",
         volume_gb=30,
-        device_limit=2,
+        subscription_options={"device_limit": 2},
+        panel_key="easy",
     )
     assert payload["device_limit"] == 2
     assert payload["service_name"] == "Alien_1"
+
+
+def test_phantom_subscription_payload_includes_advanced_options():
+    payload = _phantom_subscription_payload(
+        token="abc",
+        upstream_url="https://panel.example/sub/abc",
+        username="Alien_1",
+        volume_gb=30,
+        subscription_options={
+            "profile_title": "Phantom VIP",
+            "device_limit": 3,
+            "channel_handle": "@PhantomHubs",
+            "show_header": False,
+            "show_config_preview": False,
+            "info_proxies_enabled": True,
+        },
+        panel_key="svn",
+    )
+    assert payload["profile_title"] == "Phantom VIP"
+    assert payload["channel_handle"] == "@PhantomHubs"
+    assert payload["device_limit"] == 3
+    assert payload["show_header"] is False
+    assert payload["show_config_preview"] is False
+    assert payload["info_proxies_enabled"] is True
 
 
 def test_dated_payload():

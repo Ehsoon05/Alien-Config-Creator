@@ -23,6 +23,10 @@ def test_build_sequence_can_start_from_any_number():
     assert build_sequence("Alien_29", 2) == ["Alien_29", "Alien_30"]
 
 
+def test_build_sequence_allows_exact_single_name_without_number():
+    assert build_sequence("ExactName", 1) == ["ExactName"]
+
+
 def test_build_sequence_requires_number():
     with pytest.raises(ValueError, match="انتها عدد"):
         build_sequence("Alien", 3)
