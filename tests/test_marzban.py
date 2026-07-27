@@ -147,6 +147,12 @@ async def test_client_can_use_separate_api_and_subscription_urls():
             client.absolute_subscription_url("/sub/example")
             == "https://youpanel.example.com:2053/sub/example"
         )
+        assert (
+            client.absolute_subscription_url(
+                "http://127.0.0.1:18443/sub/example?client=sing-box"
+            )
+            == "https://youpanel.example.com:2053/sub/example?client=sing-box"
+        )
     finally:
         await client.close()
 

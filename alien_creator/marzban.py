@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, urlunparse
 
 import httpx
 
@@ -122,7 +122,13 @@ class MarzbanClient:
         return (await self._request("POST", "/api/user", json=spec.payload())).json()
 
     def absolute_subscription_url(self, url: str) -> str:
-        return urljoin(f"{self.subscription_base_url}/", url.strip())
+        subscription_url = url.strip()
+        parsed = urlparse(subscription_url)
+        if parsed.scheme and parsed.netloc:
+            subscription_url = urlunparse(
+                ("", "", parsed.path, parsed.params, parsed.query, parsed.fragment)
+            )
+        return urljoin(f"{self.subscription_base_url}/", subscription_url)
 
 
 class EasyPanelClient(MarzbanClient):
