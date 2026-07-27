@@ -5,7 +5,7 @@ import httpx
 import pytest
 
 from alien_creator.bot import PANEL_BUTTON_PATTERN, PANEL_BUTTONS, _phantom_subscription_payload
-from alien_creator.marzban import CreateSpec, EasyPanelClient, MarzbanClient, MarzbanError
+from alien_creator.marzban import CreateSpec, EasyPanelClient, MarzbanClient, MarzbanError, PasarguardClient
 
 
 INBOUNDS = {"vless": ["VLESS WS", "VLESS REALITY"]}
@@ -203,6 +203,33 @@ async def test_easy_panel_uses_multilocation_without_inbound_settings():
         await client.close()
 
     assert payloads[0]["group_ids"] == [1]
+    assert "proxies" not in payloads[0]
+    assert "inbounds" not in payloads[0]
+
+
+@pytest.mark.asyncio
+async def test_pasarguard_groups_replace_legacy_inbound_settings():
+    payloads = []
+
+    def handler(request: httpx.Request):
+        if request.url.path == "/api/admin/token":
+            return httpx.Response(200, json={"access_token": "token"})
+        payloads.append(__import__("json").loads(request.content))
+        return httpx.Response(201, json={"subscription_url": "https://p.example/sub/1"})
+
+    client = PasarguardClient(
+        "https://p.example",
+        "admin",
+        "password",
+        group_ids=(1, 2),
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        await client.create_user(CreateSpec("Alien_5", 30, 30, "on_hold", INBOUNDS))
+    finally:
+        await client.close()
+
+    assert payloads[0]["group_ids"] == [1, 2]
     assert "proxies" not in payloads[0]
     assert "inbounds" not in payloads[0]
 

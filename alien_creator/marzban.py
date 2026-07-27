@@ -190,6 +190,9 @@ class PasarguardClient(EasyPanelClient):
     async def create_user(self, spec: CreateSpec) -> dict[str, Any]:
         payload = spec.payload()
         if self.group_ids:
+            # Group selection replaces per-inbound selection for Pasarguard.
+            payload.pop("proxies", None)
+            payload.pop("inbounds", None)
             payload["group_ids"] = self.group_ids
         hwid_limit = spec.hwid_limit if spec.hwid_limit is not None else self.hwid_limit
         if hwid_limit is not None:
