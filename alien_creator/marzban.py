@@ -172,3 +172,26 @@ class EasyPanelClient(MarzbanClient):
         if hwid_limit is not None:
             payload["hwid_limit"] = int(hwid_limit)
         return (await self._request("POST", "/api/user", json=payload)).json()
+
+
+class PasarguardClient(EasyPanelClient):
+    async def get_inbounds(self) -> dict[str, list[dict[str, Any]]]:
+        payload = (await self._request("GET", "/api/inbounds")).json()
+        if isinstance(payload, list):
+            return {
+                "vless": [
+                    {"tag": str(item).strip()}
+                    for item in payload
+                    if str(item).strip()
+                ]
+            }
+        return payload if isinstance(payload, dict) else {}
+
+    async def create_user(self, spec: CreateSpec) -> dict[str, Any]:
+        payload = spec.payload()
+        if self.group_ids:
+            payload["group_ids"] = self.group_ids
+        hwid_limit = spec.hwid_limit if spec.hwid_limit is not None else self.hwid_limit
+        if hwid_limit is not None:
+            payload["hwid_limit"] = int(hwid_limit)
+        return (await self._request("POST", "/api/user", json=payload)).json()

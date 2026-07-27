@@ -70,6 +70,7 @@ logger = logging.getLogger(__name__)
 ) = range(11)
 
 EASY_PANEL_KEYS = {"easy", "mexico_hajmi", "mexico_namahdod"}
+HWID_PANEL_KEYS = EASY_PANEL_KEYS | {"alien"}
 PANEL_ORDER = ("alien", "easy", "mexico_hajmi", "mexico_namahdod", "svn")
 PANEL_BUTTONS = {
     PANEL_ALIEN: "alien",
@@ -262,7 +263,7 @@ def _parse_advanced_subscription_options(text: str, defaults: dict) -> dict:
 async def _apply_easy_panel_settings(services: "Services", panel_key: str) -> dict:
     panel = services.panel(panel_key)
     settings = await services.store.get(f"panel_settings:{panel_key}", {})
-    if panel_key in EASY_PANEL_KEYS and hasattr(panel, "update_settings"):
+    if panel_key in HWID_PANEL_KEYS and hasattr(panel, "update_settings"):
         group_ids = settings.get("group_ids")
         hwid_limit = settings.get("hwid_limit", ...)
         kwargs = {}
@@ -605,7 +606,7 @@ async def create_days(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return DAYS
     context.user_data["create"]["duration_days"] = days
     draft = context.user_data["create"]
-    if draft["panel"] in EASY_PANEL_KEYS:
+    if draft["panel"] in HWID_PANEL_KEYS:
         panel = _services(context).panel(draft["panel"])
         default_hwid = getattr(panel, "hwid_limit", None)
         default_label = default_hwid if default_hwid is not None else "پیش‌فرض خود پنل"
@@ -764,7 +765,7 @@ async def _show_create_review(update: Update, context: ContextTypes.DEFAULT_TYPE
     hwid_value = draft.get("hwid_limit")
     hwid_label = (
         "پیش‌فرض پنل"
-        if draft["panel"] in EASY_PANEL_KEYS and hwid_value is None
+        if draft["panel"] in HWID_PANEL_KEYS and hwid_value is None
         else str(hwid_value or "-")
     )
     subscription_options = draft.get("subscription_options") or _default_subscription_options(draft["panel"])

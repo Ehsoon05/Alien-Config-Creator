@@ -4,7 +4,7 @@ from telegram import BotCommand
 
 from .bot import Services, build_application
 from .config import Config
-from .marzban import EasyPanelClient, MarzbanClient, MarzbanError
+from .marzban import EasyPanelClient, MarzbanClient, MarzbanError, PasarguardClient
 from .storage import SettingsStore
 
 logger = logging.getLogger(__name__)
@@ -18,10 +18,12 @@ def main() -> None:
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
     store = SettingsStore(config.database_path)
-    alien = MarzbanClient(
+    alien = PasarguardClient(
         config.marzban_url,
         config.marzban_username,
         config.marzban_password,
+        group_ids=config.alien_panel_group_ids,
+        hwid_limit=config.alien_panel_hwid_limit,
         verify_ssl=config.verify_ssl,
     )
     easy = EasyPanelClient(
@@ -69,7 +71,7 @@ def main() -> None:
         except MarzbanError as exc:
             logger.warning("Alien panel startup check failed: %s", exc)
         for panel_key, panel in panels.items():
-            if panel_key != "alien":
+            if hasattr(panel, "update_settings"):
                 settings = await store.get(f"panel_settings:{panel_key}", {})
                 if isinstance(settings, dict) and hasattr(panel, "update_settings"):
                     kwargs = {}

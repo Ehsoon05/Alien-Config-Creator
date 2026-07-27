@@ -38,6 +38,8 @@ class Config:
     marzban_url: str
     marzban_username: str
     marzban_password: str
+    alien_panel_group_ids: tuple[int, ...]
+    alien_panel_hwid_limit: int | None
     easy_panel_url: str
     easy_panel_username: str
     easy_panel_password: str
@@ -72,6 +74,16 @@ class Config:
             marzban_url=os.getenv("MARZBAN_URL", "").strip().rstrip("/"),
             marzban_username=os.getenv("MARZBAN_USERNAME", "").strip(),
             marzban_password=os.getenv("MARZBAN_PASSWORD", ""),
+            alien_panel_group_ids=tuple(
+                int(item.strip())
+                for item in os.getenv("ALIEN_PANEL_GROUP_IDS", "").split(",")
+                if item.strip().isdigit()
+            ),
+            alien_panel_hwid_limit=(
+                _as_int(os.getenv("ALIEN_PANEL_HWID_LIMIT", ""), 0)
+                if os.getenv("ALIEN_PANEL_HWID_LIMIT", "").strip()
+                else None
+            ),
             easy_panel_url=os.getenv("EASY_PANEL_URL", "").strip().rstrip("/"),
             easy_panel_username=os.getenv("EASY_PANEL_USERNAME", "").strip(),
             easy_panel_password=os.getenv("EASY_PANEL_PASSWORD", ""),
