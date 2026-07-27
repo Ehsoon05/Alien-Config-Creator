@@ -53,9 +53,10 @@ def main() -> None:
         )
     if config.svn_panel_url:
         panels["svn"] = MarzbanClient(
-            config.svn_panel_url,
+            config.svn_panel_api_url or config.svn_panel_url,
             config.svn_panel_username,
             config.svn_panel_password,
+            subscription_base_url=config.svn_panel_url,
             verify_ssl=config.verify_ssl,
         )
     application = build_application(Services(config, store, panels))

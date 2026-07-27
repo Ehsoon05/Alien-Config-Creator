@@ -63,10 +63,12 @@ class MarzbanClient:
         username: str,
         password: str,
         *,
+        subscription_base_url: str | None = None,
         verify_ssl: bool = True,
         transport: httpx.AsyncBaseTransport | None = None,
     ):
         self.base_url = base_url.rstrip("/")
+        self.subscription_base_url = (subscription_base_url or base_url).rstrip("/")
         self.username = username
         self.password = password
         self._token: str | None = None
@@ -120,7 +122,7 @@ class MarzbanClient:
         return (await self._request("POST", "/api/user", json=spec.payload())).json()
 
     def absolute_subscription_url(self, url: str) -> str:
-        return urljoin(f"{self.base_url.rstrip('/')}/", url.strip())
+        return urljoin(f"{self.subscription_base_url}/", url.strip())
 
 
 class EasyPanelClient(MarzbanClient):

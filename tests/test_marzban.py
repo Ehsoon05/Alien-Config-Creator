@@ -134,6 +134,24 @@ async def test_client_authenticates_and_creates_user():
 
 
 @pytest.mark.asyncio
+async def test_client_can_use_separate_api_and_subscription_urls():
+    client = MarzbanClient(
+        "https://127.0.0.1:18443",
+        "admin",
+        "password",
+        subscription_base_url="https://youpanel.example.com:2053",
+        verify_ssl=False,
+    )
+    try:
+        assert (
+            client.absolute_subscription_url("/sub/example")
+            == "https://youpanel.example.com:2053/sub/example"
+        )
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 async def test_easy_panel_uses_multilocation_without_inbound_settings():
     payloads = []
 

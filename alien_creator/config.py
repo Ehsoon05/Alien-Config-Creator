@@ -54,6 +54,7 @@ class Config:
     mexico_namahdod_panel_group_ids: tuple[int, ...]
     mexico_namahdod_panel_hwid_limit: int | None
     svn_panel_url: str
+    svn_panel_api_url: str
     svn_panel_username: str
     svn_panel_password: str
     database_path: Path
@@ -111,6 +112,7 @@ class Config:
                 else None
             ),
             svn_panel_url=os.getenv("SVN_PANEL_URL", "").strip().rstrip("/"),
+            svn_panel_api_url=os.getenv("SVN_PANEL_API_URL", "").strip().rstrip("/"),
             svn_panel_username=os.getenv("SVN_PANEL_USERNAME", "").strip(),
             svn_panel_password=os.getenv("SVN_PANEL_PASSWORD", ""),
             database_path=Path(os.getenv("DATABASE_PATH", "data/settings.db")),
@@ -171,7 +173,12 @@ class Config:
                 missing.append(f"{prefix}_PANEL_PASSWORD")
             if not group_ids:
                 missing.append(f"{prefix}_PANEL_GROUP_IDS")
-        svn_any_value = bool(self.svn_panel_url or self.svn_panel_username or self.svn_panel_password)
+        svn_any_value = bool(
+            self.svn_panel_url
+            or self.svn_panel_api_url
+            or self.svn_panel_username
+            or self.svn_panel_password
+        )
         if svn_any_value:
             if not self.svn_panel_url:
                 missing.append("SVN_PANEL_URL")
