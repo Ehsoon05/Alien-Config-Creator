@@ -85,10 +85,13 @@ class MarzbanClient:
     async def authenticate(self, force: bool = False) -> str:
         if self._token and not force:
             return self._token
-        response = await self._client.post(
-            "/api/admin/token",
-            data={"username": self.username, "password": self.password},
-        )
+        try:
+            response = await self._client.post(
+                "/api/admin/token",
+                data={"username": self.username, "password": self.password},
+            )
+        except httpx.HTTPError as exc:
+            raise MarzbanError(f"ارتباط با پنل برقرار نشد: {exc}") from exc
         self._raise(response)
         self._token = response.json()["access_token"]
         return self._token
@@ -97,11 +100,17 @@ class MarzbanClient:
         token = await self.authenticate()
         headers = dict(kwargs.pop("headers", {}))
         headers["Authorization"] = f"Bearer {token}"
-        response = await self._client.request(method, path, headers=headers, **kwargs)
+        try:
+            response = await self._client.request(method, path, headers=headers, **kwargs)
+        except httpx.HTTPError as exc:
+            raise MarzbanError(f"ارتباط با پنل برقرار نشد: {exc}") from exc
         if response.status_code == 401:
             token = await self.authenticate(force=True)
             headers["Authorization"] = f"Bearer {token}"
-            response = await self._client.request(method, path, headers=headers, **kwargs)
+            try:
+                response = await self._client.request(method, path, headers=headers, **kwargs)
+            except httpx.HTTPError as exc:
+                raise MarzbanError(f"ارتباط با پنل برقرار نشد: {exc}") from exc
         self._raise(response)
         return response
 

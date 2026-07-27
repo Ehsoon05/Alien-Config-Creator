@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import secrets
 from dataclasses import dataclass
 from urllib.parse import quote, urlparse
@@ -84,6 +85,7 @@ PANEL_LABELS = {
     "mexico_namahdod": "Mexico Namahdod",
     "svn": "SVN",
 }
+PANEL_BUTTON_PATTERN = rf"^(?:{'|'.join(re.escape(label) for label in PANEL_BUTTONS)})$"
 
 
 def _configured_panel_labels(services: "Services") -> dict[str, str]:
@@ -512,9 +514,10 @@ async def create_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("یکی از پنل‌ها را انتخاب کنید.")
         return PANEL
     services = _services(context)
-    context.user_data["create"]["panel"] = panel_key
+    draft = context.user_data.setdefault("create", {})
+    draft["panel"] = panel_key
     if panel_key in EASY_PANEL_KEYS:
-        context.user_data["create"]["inbounds"] = {}
+        draft["inbounds"] = {}
         await update.effective_message.reply_text(
             "حجم هر کانفیگ را به گیگ وارد کنید. برای نامحدود عدد 0 را بفرستید.",
             reply_markup=cancel_keyboard(),
@@ -546,7 +549,7 @@ async def create_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=main_keyboard(),
         )
         return ConversationHandler.END
-    context.user_data["create"]["inbounds"] = selected
+    draft["inbounds"] = selected
     await update.effective_message.reply_text(
         "حجم هر کانفیگ را به گیگ وارد کنید. برای نامحدود عدد 0 را بفرستید.",
         reply_markup=cancel_keyboard(),
@@ -814,6 +817,11 @@ async def create_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         try:
             panel = _services(context).panel(draft["panel"])
+            if total <= 10 or index == 1 or index % 5 == 0:
+                await progress.edit_text(
+                    f"در حال ساخت کانفیگ {index} از {total} در پنل "
+                    f"{PANEL_LABELS.get(draft['panel'], draft['panel'])}..."
+                )
             user = await panel.create_user(spec)
             subscription_url = str(user.get("subscription_url", "")).strip()
             if not subscription_url:
@@ -882,6 +890,15 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+async def handle_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.error("Unhandled bot update error", exc_info=context.error)
+    if isinstance(update, Update) and update.effective_message:
+        await update.effective_message.reply_text(
+            "عملیات به‌دلیل یک خطای موقت متوقف شد. دوباره از «ساخت کانفیگ» شروع کنید.",
+            reply_markup=main_keyboard(),
+        )
+
+
 def build_application(services: Services) -> Application:
     application = Application.builder().token(services.config.bot_token).build()
     application.bot_data["services"] = services
@@ -889,6 +906,7 @@ def build_application(services: Services) -> Application:
         entry_points=[
             CommandHandler("create", create_start),
             MessageHandler(filters.Regex(f"^{CREATE}$"), create_start),
+            MessageHandler(filters.Regex(PANEL_BUTTON_PATTERN), create_panel),
         ],
         states={
             PANEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_panel)],
@@ -916,4 +934,5 @@ def build_application(services: Services) -> Application:
     application.add_handler(CallbackQueryHandler(settings_back_callback, pattern=r"^settings_back$"))
     application.add_handler(CallbackQueryHandler(easy_settings_callback, pattern=r"^easy_settings:"))
     application.add_handler(CallbackQueryHandler(inbound_toggle, pattern=r"^inbound:"))
+    application.add_error_handler(handle_error)
     return application

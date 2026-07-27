@@ -1,10 +1,11 @@
+import re
 from datetime import datetime, timezone
 
 import httpx
 import pytest
 
-from alien_creator.bot import _phantom_subscription_payload
-from alien_creator.marzban import CreateSpec, EasyPanelClient, MarzbanClient
+from alien_creator.bot import PANEL_BUTTON_PATTERN, PANEL_BUTTONS, _phantom_subscription_payload
+from alien_creator.marzban import CreateSpec, EasyPanelClient, MarzbanClient, MarzbanError
 
 
 INBOUNDS = {"vless": ["VLESS WS", "VLESS REALITY"]}
@@ -155,6 +156,28 @@ async def test_client_can_use_separate_api_and_subscription_urls():
         )
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_client_wraps_network_errors():
+    def handler(request: httpx.Request):
+        raise httpx.ConnectError("offline", request=request)
+
+    client = MarzbanClient(
+        "https://panel.example.com",
+        "admin",
+        "password",
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        with pytest.raises(MarzbanError, match="ارتباط با پنل برقرار نشد"):
+            await client.authenticate()
+    finally:
+        await client.close()
+
+
+def test_panel_buttons_can_restart_an_expired_conversation():
+    assert all(re.fullmatch(PANEL_BUTTON_PATTERN, label) for label in PANEL_BUTTONS)
 
 
 @pytest.mark.asyncio
