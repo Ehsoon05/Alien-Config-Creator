@@ -70,6 +70,8 @@ class MarzbanClient:
         *,
         subscription_base_url: str | None = None,
         fallback_base_urls: tuple[str, ...] = (),
+        request_timeout_seconds: float = 30,
+        connect_timeout_seconds: float = 15,
         verify_ssl: bool = True,
         transport: httpx.AsyncBaseTransport | None = None,
     ):
@@ -96,7 +98,10 @@ class MarzbanClient:
             httpx.AsyncClient(
                 base_url=url,
                 verify=verify_ssl,
-                timeout=httpx.Timeout(30, connect=15),
+                timeout=httpx.Timeout(
+                    request_timeout_seconds,
+                    connect=connect_timeout_seconds,
+                ),
                 transport=transport,
                 headers=headers,
             )
