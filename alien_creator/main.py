@@ -54,11 +54,18 @@ def main() -> None:
             verify_ssl=config.verify_ssl,
         )
     if config.svn_panel_url:
+        svn_api_url = config.svn_panel_api_url or config.svn_panel_url
+        svn_fallback_urls = (
+            (config.svn_panel_url,)
+            if svn_api_url.rstrip("/") != config.svn_panel_url.rstrip("/")
+            else ()
+        )
         panels["svn"] = MarzbanClient(
-            config.svn_panel_api_url or config.svn_panel_url,
+            svn_api_url,
             config.svn_panel_username,
             config.svn_panel_password,
             subscription_base_url=config.svn_panel_url,
+            fallback_base_urls=svn_fallback_urls,
             verify_ssl=config.verify_ssl,
         )
     application = build_application(Services(config, store, panels))

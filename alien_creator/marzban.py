@@ -24,15 +24,20 @@ class CreateSpec:
     def payload(self, now: datetime | None = None) -> dict[str, Any]:
         now = now or datetime.now(timezone.utc)
         protocols = sorted(self.inbounds)
+        unlimited_time = self.duration_days <= 0 or self.mode == "unlimited"
         payload: dict[str, Any] = {
             "username": self.username,
-            "status": "on_hold" if self.mode == "on_hold" else "active",
+            "status": (
+                "active"
+                if unlimited_time
+                else ("on_hold" if self.mode == "on_hold" else "active")
+            ),
             "data_limit": self.volume_gb * 1024**3 if self.volume_gb > 0 else 0,
             "data_limit_reset_strategy": "no_reset",
             "proxies": {protocol: {} for protocol in protocols},
             "inbounds": self.inbounds,
         }
-        if self.duration_days <= 0 or self.mode == "unlimited":
+        if unlimited_time:
             payload.update(
                 {
                     "expire": 0,
@@ -64,6 +69,7 @@ class MarzbanClient:
         password: str,
         *,
         subscription_base_url: str | None = None,
+        fallback_base_urls: tuple[str, ...] = (),
         verify_ssl: bool = True,
         transport: httpx.AsyncBaseTransport | None = None,
     ):
@@ -72,29 +78,66 @@ class MarzbanClient:
         self.username = username
         self.password = password
         self._token: str | None = None
-        self._client = httpx.AsyncClient(
-            base_url=self.base_url,
-            verify=verify_ssl,
-            timeout=httpx.Timeout(30, connect=15),
-            transport=transport,
+        base_urls = list(
+            dict.fromkeys(
+                url.rstrip("/")
+                for url in (self.base_url, *fallback_base_urls)
+                if url and url.rstrip("/")
+            )
         )
+        headers = {
+            "Accept": "application/json, text/plain, */*",
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+            ),
+        }
+        self._clients = [
+            httpx.AsyncClient(
+                base_url=url,
+                verify=verify_ssl,
+                timeout=httpx.Timeout(30, connect=15),
+                transport=transport,
+                headers=headers,
+            )
+            for url in base_urls
+        ]
+        self._client = self._clients[0]
 
     async def close(self) -> None:
-        await self._client.aclose()
+        for client in self._clients:
+            await client.aclose()
 
     async def authenticate(self, force: bool = False) -> str:
         if self._token and not force:
             return self._token
-        try:
-            response = await self._client.post(
-                "/api/admin/token",
-                data={"username": self.username, "password": self.password},
-            )
-        except httpx.HTTPError as exc:
-            raise MarzbanError(f"ارتباط با پنل برقرار نشد: {exc}") from exc
-        self._raise(response)
-        self._token = response.json()["access_token"]
-        return self._token
+        last_error: MarzbanError | None = None
+        ordered_clients = [
+            self._client,
+            *(client for client in self._clients if client is not self._client),
+        ]
+        for client in ordered_clients:
+            try:
+                response = await client.post(
+                    "/api/admin/token",
+                    data={"username": self.username, "password": self.password},
+                )
+                self._raise(response)
+                token = response.json().get("access_token")
+                if not token:
+                    raise MarzbanError("پنل توکن دسترسی برنگرداند.")
+            except httpx.HTTPError as exc:
+                last_error = MarzbanError(f"ارتباط با پنل برقرار نشد: {exc}")
+                continue
+            except (MarzbanError, ValueError) as exc:
+                last_error = exc if isinstance(exc, MarzbanError) else MarzbanError(
+                    "پاسخ ورود پنل معتبر نیست."
+                )
+                continue
+            self._client = client
+            self._token = str(token)
+            return self._token
+        raise last_error or MarzbanError("ارتباط با پنل برقرار نشد.")
 
     async def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
         token = await self.authenticate()

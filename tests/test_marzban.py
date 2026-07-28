@@ -176,6 +176,32 @@ async def test_client_wraps_network_errors():
         await client.close()
 
 
+@pytest.mark.asyncio
+async def test_client_falls_back_to_public_panel_api():
+    requested_hosts = []
+
+    def handler(request: httpx.Request):
+        requested_hosts.append(request.url.host)
+        if request.url.host == "relay.example":
+            raise httpx.ConnectError("relay offline", request=request)
+        assert "Mozilla/5.0" in request.headers["user-agent"]
+        return httpx.Response(200, json={"access_token": "direct-token"})
+
+    client = MarzbanClient(
+        "https://relay.example",
+        "admin",
+        "password",
+        fallback_base_urls=("https://public-panel.example",),
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        assert await client.authenticate() == "direct-token"
+    finally:
+        await client.close()
+
+    assert requested_hosts == ["relay.example", "public-panel.example"]
+
+
 def test_panel_buttons_can_restart_an_expired_conversation():
     assert all(re.fullmatch(PANEL_BUTTON_PATTERN, label) for label in PANEL_BUTTONS)
 
