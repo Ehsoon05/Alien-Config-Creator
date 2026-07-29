@@ -34,6 +34,7 @@ from .keyboards import (
     PANEL_MEXICO_HAJMI,
     PANEL_MEXICO_NAMAHDOD,
     PANEL_MMD,
+    PANEL_MMD_GERMANY,
     PANEL_SVN,
     SETTINGS,
     STATUS,
@@ -72,7 +73,15 @@ logger = logging.getLogger(__name__)
 
 EASY_PANEL_KEYS = {"easy", "mexico_hajmi", "mexico_namahdod"}
 HWID_PANEL_KEYS = EASY_PANEL_KEYS | {"alien"}
-PANEL_ORDER = ("alien", "easy", "mexico_hajmi", "mexico_namahdod", "svn", "mmd")
+PANEL_ORDER = (
+    "alien",
+    "easy",
+    "mexico_hajmi",
+    "mexico_namahdod",
+    "svn",
+    "mmd",
+    "mmd_germany",
+)
 PANEL_BUTTONS = {
     PANEL_ALIEN: "alien",
     PANEL_EASY: "easy",
@@ -80,6 +89,7 @@ PANEL_BUTTONS = {
     PANEL_MEXICO_NAMAHDOD: "mexico_namahdod",
     PANEL_SVN: "svn",
     PANEL_MMD: "mmd",
+    PANEL_MMD_GERMANY: "mmd_germany",
 }
 PANEL_LABELS = {
     "alien": "Alien",
@@ -88,6 +98,7 @@ PANEL_LABELS = {
     "mexico_namahdod": "Mexico Namahdod",
     "svn": "SVN",
     "mmd": "MMD",
+    "mmd_germany": "MMD germany",
 }
 PANEL_BUTTON_PATTERN = rf"^(?:{'|'.join(re.escape(label) for label in PANEL_BUTTONS)})$"
 
