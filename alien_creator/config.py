@@ -59,6 +59,9 @@ class Config:
     svn_panel_api_url: str
     svn_panel_username: str
     svn_panel_password: str
+    mmd_panel_url: str
+    mmd_panel_username: str
+    mmd_panel_password: str
     database_path: Path
     log_level: str
     verify_ssl: bool
@@ -127,6 +130,9 @@ class Config:
             svn_panel_api_url=os.getenv("SVN_PANEL_API_URL", "").strip().rstrip("/"),
             svn_panel_username=os.getenv("SVN_PANEL_USERNAME", "").strip(),
             svn_panel_password=os.getenv("SVN_PANEL_PASSWORD", ""),
+            mmd_panel_url=os.getenv("MMD_PANEL_URL", "").strip().rstrip("/"),
+            mmd_panel_username=os.getenv("MMD_PANEL_USERNAME", "").strip(),
+            mmd_panel_password=os.getenv("MMD_PANEL_PASSWORD", ""),
             database_path=Path(os.getenv("DATABASE_PATH", "data/settings.db")),
             log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
             verify_ssl=_as_bool(os.getenv("VERIFY_SSL", "true")),
@@ -198,5 +204,17 @@ class Config:
                 missing.append("SVN_PANEL_USERNAME")
             if not self.svn_panel_password:
                 missing.append("SVN_PANEL_PASSWORD")
+        mmd_any_value = bool(
+            self.mmd_panel_url
+            or self.mmd_panel_username
+            or self.mmd_panel_password
+        )
+        if mmd_any_value:
+            if not self.mmd_panel_url:
+                missing.append("MMD_PANEL_URL")
+            if not self.mmd_panel_username:
+                missing.append("MMD_PANEL_USERNAME")
+            if not self.mmd_panel_password:
+                missing.append("MMD_PANEL_PASSWORD")
         if missing:
             raise RuntimeError(f"Missing required settings: {', '.join(missing)}")

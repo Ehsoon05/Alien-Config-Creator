@@ -71,6 +71,15 @@ def main() -> None:
             connect_timeout_seconds=5,
             verify_ssl=config.verify_ssl,
         )
+    if config.mmd_panel_url:
+        panels["mmd"] = MarzbanClient(
+            config.mmd_panel_url,
+            config.mmd_panel_username,
+            config.mmd_panel_password,
+            request_timeout_seconds=20,
+            connect_timeout_seconds=5,
+            verify_ssl=config.verify_ssl,
+        )
     application = build_application(Services(config, store, panels))
 
     async def post_init(_application):
