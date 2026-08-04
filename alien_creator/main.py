@@ -89,6 +89,15 @@ def main() -> None:
             connect_timeout_seconds=5,
             verify_ssl=config.verify_ssl,
         )
+    if config.phantom_tunnel_panel_url:
+        panels["phantom_tunnel"] = MarzbanClient(
+            config.phantom_tunnel_panel_url,
+            config.phantom_tunnel_panel_username,
+            config.phantom_tunnel_panel_password,
+            request_timeout_seconds=20,
+            connect_timeout_seconds=5,
+            verify_ssl=config.verify_ssl,
+        )
     application = build_application(Services(config, store, panels))
 
     async def post_init(_application):

@@ -65,6 +65,9 @@ class Config:
     mmd_germany_panel_url: str
     mmd_germany_panel_username: str
     mmd_germany_panel_password: str
+    phantom_tunnel_panel_url: str
+    phantom_tunnel_panel_username: str
+    phantom_tunnel_panel_password: str
     database_path: Path
     log_level: str
     verify_ssl: bool
@@ -139,6 +142,9 @@ class Config:
             mmd_germany_panel_url=os.getenv("MMD_GERMANY_PANEL_URL", "").strip().rstrip("/"),
             mmd_germany_panel_username=os.getenv("MMD_GERMANY_PANEL_USERNAME", "").strip(),
             mmd_germany_panel_password=os.getenv("MMD_GERMANY_PANEL_PASSWORD", ""),
+            phantom_tunnel_panel_url=os.getenv("PHANTOM_TUNNEL_PANEL_URL", "").strip().rstrip("/"),
+            phantom_tunnel_panel_username=os.getenv("PHANTOM_TUNNEL_PANEL_USERNAME", "").strip(),
+            phantom_tunnel_panel_password=os.getenv("PHANTOM_TUNNEL_PANEL_PASSWORD", ""),
             database_path=Path(os.getenv("DATABASE_PATH", "data/settings.db")),
             log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
             verify_ssl=_as_bool(os.getenv("VERIFY_SSL", "true")),
@@ -234,5 +240,17 @@ class Config:
                 missing.append("MMD_GERMANY_PANEL_USERNAME")
             if not self.mmd_germany_panel_password:
                 missing.append("MMD_GERMANY_PANEL_PASSWORD")
+        phantom_tunnel_any_value = bool(
+            self.phantom_tunnel_panel_url
+            or self.phantom_tunnel_panel_username
+            or self.phantom_tunnel_panel_password
+        )
+        if phantom_tunnel_any_value:
+            if not self.phantom_tunnel_panel_url:
+                missing.append("PHANTOM_TUNNEL_PANEL_URL")
+            if not self.phantom_tunnel_panel_username:
+                missing.append("PHANTOM_TUNNEL_PANEL_USERNAME")
+            if not self.phantom_tunnel_panel_password:
+                missing.append("PHANTOM_TUNNEL_PANEL_PASSWORD")
         if missing:
             raise RuntimeError(f"Missing required settings: {', '.join(missing)}")
