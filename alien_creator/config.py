@@ -45,6 +45,7 @@ class Config:
     easy_panel_password: str
     easy_panel_group_ids: tuple[int, ...]
     easy_panel_hwid_limit: int | None
+    mexico_panel_api_url: str
     mexico_hajmi_panel_url: str
     mexico_hajmi_panel_username: str
     mexico_hajmi_panel_password: str
@@ -106,6 +107,7 @@ class Config:
                 if os.getenv("EASY_PANEL_HWID_LIMIT", "").strip()
                 else None
             ),
+            mexico_panel_api_url=os.getenv("MEXICO_PANEL_API_URL", "").strip().rstrip("/"),
             mexico_hajmi_panel_url=os.getenv("MEXICO_HAJMI_PANEL_URL", "").strip().rstrip("/"),
             mexico_hajmi_panel_username=os.getenv("MEXICO_HAJMI_PANEL_USERNAME", "").strip(),
             mexico_hajmi_panel_password=os.getenv("MEXICO_HAJMI_PANEL_PASSWORD", ""),

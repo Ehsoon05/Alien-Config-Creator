@@ -36,22 +36,26 @@ def main() -> None:
     )
     panels = {"alien": alien, "easy": easy}
     if config.mexico_hajmi_panel_url:
+        mexico_hajmi_api_url = config.mexico_panel_api_url or config.mexico_hajmi_panel_url
         panels["mexico_hajmi"] = EasyPanelClient(
-            config.mexico_hajmi_panel_url,
+            mexico_hajmi_api_url,
             config.mexico_hajmi_panel_username,
             config.mexico_hajmi_panel_password,
+            subscription_base_url=config.mexico_hajmi_panel_url,
             group_ids=config.mexico_hajmi_panel_group_ids,
             hwid_limit=config.mexico_hajmi_panel_hwid_limit,
-            verify_ssl=config.verify_ssl,
+            verify_ssl=False if config.mexico_panel_api_url else config.verify_ssl,
         )
     if config.mexico_namahdod_panel_url:
+        mexico_namahdod_api_url = config.mexico_panel_api_url or config.mexico_namahdod_panel_url
         panels["mexico_namahdod"] = EasyPanelClient(
-            config.mexico_namahdod_panel_url,
+            mexico_namahdod_api_url,
             config.mexico_namahdod_panel_username,
             config.mexico_namahdod_panel_password,
+            subscription_base_url=config.mexico_namahdod_panel_url,
             group_ids=config.mexico_namahdod_panel_group_ids,
             hwid_limit=config.mexico_namahdod_panel_hwid_limit,
-            verify_ssl=config.verify_ssl,
+            verify_ssl=False if config.mexico_panel_api_url else config.verify_ssl,
         )
     if config.svn_panel_url:
         svn_api_url = config.svn_panel_url

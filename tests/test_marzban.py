@@ -234,6 +234,35 @@ async def test_easy_panel_uses_multilocation_without_inbound_settings():
 
 
 @pytest.mark.asyncio
+async def test_easy_panel_can_use_private_api_with_public_subscription_base():
+    requested_hosts = []
+
+    def handler(request: httpx.Request):
+        requested_hosts.append(request.url.host)
+        if request.url.path == "/api/admin/token":
+            return httpx.Response(200, json={"access_token": "token"})
+        return httpx.Response(201, json={"subscription_url": "/sub/created"})
+
+    client = EasyPanelClient(
+        "https://relay.example",
+        "admin",
+        "password",
+        subscription_base_url="https://public-panel.example:8000",
+        group_ids=(1,),
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        user = await client.create_user(CreateSpec("Alien_2", 30, 30, "date", INBOUNDS))
+        assert client.absolute_subscription_url(user["subscription_url"]) == (
+            "https://public-panel.example:8000/sub/created"
+        )
+    finally:
+        await client.close()
+
+    assert requested_hosts == ["relay.example", "relay.example"]
+
+
+@pytest.mark.asyncio
 async def test_pasarguard_groups_replace_legacy_inbound_settings():
     payloads = []
 
