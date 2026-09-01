@@ -5,10 +5,22 @@ import httpx
 import pytest
 
 from alien_creator.bot import PANEL_BUTTON_PATTERN, PANEL_BUTTONS, _phantom_subscription_payload
+from alien_creator.config import _canonical_mexico_panel_url
 from alien_creator.marzban import CreateSpec, EasyPanelClient, MarzbanClient, MarzbanError, PasarguardClient
 
 
 INBOUNDS = {"vless": ["VLESS WS", "VLESS REALITY"]}
+
+
+def test_legacy_mexico_panel_hosts_are_canonicalized():
+    assert (
+        _canonical_mexico_panel_url("https://panel.mexicosenter.ir")
+        == "https://my.litegames.ir:8000"
+    )
+    assert (
+        _canonical_mexico_panel_url("https://my.mexicosenter.ir:8000/")
+        == "https://my.litegames.ir:8000"
+    )
 
 
 def test_on_hold_payload():

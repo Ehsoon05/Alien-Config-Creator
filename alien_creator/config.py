@@ -31,6 +31,29 @@ def _as_int(value: str, default: int) -> int:
         return default
 
 
+MEXICO_PANEL_URL_ALIASES = {
+    "panel.mexicosenter.ir": "my.litegames.ir:8000",
+    "panel.mexicosenter.ir:8000": "my.litegames.ir:8000",
+    "my.mexicosenter.ir": "my.litegames.ir:8000",
+    "my.mexicosenter.ir:8000": "my.litegames.ir:8000",
+    "my.api.novexgroup.ir": "my.litegames.ir:8000",
+    "my.api.novexgroup.ir:8000": "my.litegames.ir:8000",
+}
+
+
+def _canonical_mexico_panel_url(value: str) -> str:
+    url = (value or "").strip().rstrip("/")
+    if not url:
+        return ""
+    scheme = "https"
+    rest = url
+    if "://" in url:
+        scheme, rest = url.split("://", 1)
+    host, _, path = rest.partition("/")
+    canonical_host = MEXICO_PANEL_URL_ALIASES.get(host.lower(), host)
+    return f"{scheme}://{canonical_host}" + (f"/{path}" if path else "")
+
+
 @dataclass(frozen=True)
 class Config:
     bot_token: str
@@ -107,8 +130,8 @@ class Config:
                 if os.getenv("EASY_PANEL_HWID_LIMIT", "").strip()
                 else None
             ),
-            mexico_panel_api_url=os.getenv("MEXICO_PANEL_API_URL", "").strip().rstrip("/"),
-            mexico_hajmi_panel_url=os.getenv("MEXICO_HAJMI_PANEL_URL", "").strip().rstrip("/"),
+            mexico_panel_api_url=_canonical_mexico_panel_url(os.getenv("MEXICO_PANEL_API_URL", "")),
+            mexico_hajmi_panel_url=_canonical_mexico_panel_url(os.getenv("MEXICO_HAJMI_PANEL_URL", "")),
             mexico_hajmi_panel_username=os.getenv("MEXICO_HAJMI_PANEL_USERNAME", "").strip(),
             mexico_hajmi_panel_password=os.getenv("MEXICO_HAJMI_PANEL_PASSWORD", ""),
             mexico_hajmi_panel_group_ids=tuple(
@@ -121,7 +144,7 @@ class Config:
                 if os.getenv("MEXICO_HAJMI_PANEL_HWID_LIMIT", "").strip()
                 else None
             ),
-            mexico_namahdod_panel_url=os.getenv("MEXICO_NAMAHDOD_PANEL_URL", "").strip().rstrip("/"),
+            mexico_namahdod_panel_url=_canonical_mexico_panel_url(os.getenv("MEXICO_NAMAHDOD_PANEL_URL", "")),
             mexico_namahdod_panel_username=os.getenv("MEXICO_NAMAHDOD_PANEL_USERNAME", "").strip(),
             mexico_namahdod_panel_password=os.getenv("MEXICO_NAMAHDOD_PANEL_PASSWORD", ""),
             mexico_namahdod_panel_group_ids=tuple(
