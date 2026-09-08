@@ -12,6 +12,32 @@ class MarzbanError(RuntimeError):
     pass
 
 
+def _normalize_inbounds_payload(payload: Any) -> dict[str, list[dict[str, Any]]]:
+    if isinstance(payload, dict):
+        normalized: dict[str, list[dict[str, Any]]] = {}
+        for protocol, entries in payload.items():
+            if not isinstance(entries, list):
+                continue
+            protocol_name = str(protocol).strip() or "vless"
+            normalized[protocol_name] = [
+                entry
+                if isinstance(entry, dict)
+                else {"tag": str(entry).strip(), "protocol": protocol_name}
+                for entry in entries
+                if (entry if isinstance(entry, dict) else str(entry).strip())
+            ]
+        return normalized
+    if isinstance(payload, list):
+        return {
+            "vless": [
+                {"tag": str(item).strip(), "protocol": "vless"}
+                for item in payload
+                if str(item).strip()
+            ]
+        }
+    return {}
+
+
 @dataclass(frozen=True)
 class CreateSpec:
     username: str
@@ -173,7 +199,7 @@ class MarzbanClient:
         raise MarzbanError(f"Marzban API {response.status_code}: {detail}")
 
     async def get_inbounds(self) -> dict[str, list[dict[str, Any]]]:
-        return (await self._request("GET", "/api/inbounds")).json()
+        return _normalize_inbounds_payload((await self._request("GET", "/api/inbounds")).json())
 
     async def create_user(self, spec: CreateSpec) -> dict[str, Any]:
         return (await self._request("POST", "/api/user", json=spec.payload())).json()
@@ -224,16 +250,7 @@ class EasyPanelClient(MarzbanClient):
 
 class PasarguardClient(EasyPanelClient):
     async def get_inbounds(self) -> dict[str, list[dict[str, Any]]]:
-        payload = (await self._request("GET", "/api/inbounds")).json()
-        if isinstance(payload, list):
-            return {
-                "vless": [
-                    {"tag": str(item).strip()}
-                    for item in payload
-                    if str(item).strip()
-                ]
-            }
-        return payload if isinstance(payload, dict) else {}
+        return _normalize_inbounds_payload((await self._request("GET", "/api/inbounds")).json())
 
     async def create_user(self, spec: CreateSpec) -> dict[str, Any]:
         payload = spec.payload()

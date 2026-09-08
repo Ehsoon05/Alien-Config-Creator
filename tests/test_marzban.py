@@ -6,7 +6,14 @@ import pytest
 
 from alien_creator.bot import PANEL_BUTTON_PATTERN, PANEL_BUTTONS, _phantom_subscription_payload
 from alien_creator.config import _canonical_mexico_panel_url
-from alien_creator.marzban import CreateSpec, EasyPanelClient, MarzbanClient, MarzbanError, PasarguardClient
+from alien_creator.marzban import (
+    CreateSpec,
+    EasyPanelClient,
+    MarzbanClient,
+    MarzbanError,
+    PasarguardClient,
+    _normalize_inbounds_payload,
+)
 
 
 INBOUNDS = {"vless": ["VLESS WS", "VLESS REALITY"]}
@@ -21,6 +28,15 @@ def test_legacy_mexico_panel_hosts_are_canonicalized():
         _canonical_mexico_panel_url("https://my.mexicosenter.ir:8000/")
         == "https://my.litegames.ir:8000"
     )
+
+
+def test_inbound_list_payload_is_normalized_for_pasarguard_style_panels():
+    assert _normalize_inbounds_payload(["FASTLY WS", "Reality"]) == {
+        "vless": [
+            {"tag": "FASTLY WS", "protocol": "vless"},
+            {"tag": "Reality", "protocol": "vless"},
+        ]
+    }
 
 
 def test_on_hold_payload():
