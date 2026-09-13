@@ -32,12 +32,14 @@ def _as_int(value: str, default: int) -> int:
 
 
 MEXICO_PANEL_URL_ALIASES = {
-    "panel.mexicosenter.ir": "my.litegames.ir:8000",
-    "panel.mexicosenter.ir:8000": "my.litegames.ir:8000",
-    "my.mexicosenter.ir": "my.litegames.ir:8000",
-    "my.mexicosenter.ir:8000": "my.litegames.ir:8000",
-    "my.api.novexgroup.ir": "my.litegames.ir:8000",
-    "my.api.novexgroup.ir:8000": "my.litegames.ir:8000",
+    "my.litegames.ir": "my.mexicosenter.ir:8000",
+    "my.litegames.ir:8000": "my.mexicosenter.ir:8000",
+    "panel.mexicosenter.ir": "my.mexicosenter.ir:8000",
+    "panel.mexicosenter.ir:8000": "my.mexicosenter.ir:8000",
+    "my.mexicosenter.ir": "my.mexicosenter.ir:8000",
+    "my.mexicosenter.ir:8000": "my.mexicosenter.ir:8000",
+    "my.api.novexgroup.ir": "my.mexicosenter.ir:8000",
+    "my.api.novexgroup.ir:8000": "my.mexicosenter.ir:8000",
 }
 
 

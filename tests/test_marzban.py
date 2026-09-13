@@ -22,11 +22,15 @@ INBOUNDS = {"vless": ["VLESS WS", "VLESS REALITY"]}
 def test_legacy_mexico_panel_hosts_are_canonicalized():
     assert (
         _canonical_mexico_panel_url("https://panel.mexicosenter.ir")
-        == "https://my.litegames.ir:8000"
+        == "https://my.mexicosenter.ir:8000"
     )
     assert (
         _canonical_mexico_panel_url("https://my.mexicosenter.ir:8000/")
-        == "https://my.litegames.ir:8000"
+        == "https://my.mexicosenter.ir:8000"
+    )
+    assert (
+        _canonical_mexico_panel_url("https://my.litegames.ir:8000/")
+        == "https://my.mexicosenter.ir:8000"
     )
 
 
