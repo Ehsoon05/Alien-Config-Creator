@@ -18,6 +18,7 @@ PANEL_SVN = "SVN"
 PANEL_MMD = "MMD"
 PANEL_MMD_GERMANY = "MMD germany"
 PANEL_PHANTOM_TUNNEL = "Phantom Tunnel"
+PANEL_HYPER = "Hyper Panel"
 BACK = "بازگشت"
 
 
@@ -53,6 +54,7 @@ def panel_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(PANEL_MMD)],
             [KeyboardButton(PANEL_MMD_GERMANY)],
             [KeyboardButton(PANEL_PHANTOM_TUNNEL)],
+            [KeyboardButton(PANEL_HYPER)],
             [KeyboardButton(CANCEL)],
         ],
         resize_keyboard=True,

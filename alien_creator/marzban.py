@@ -263,3 +263,76 @@ class PasarguardClient(EasyPanelClient):
         if hwid_limit is not None:
             payload["hwid_limit"] = int(hwid_limit)
         return (await self._request("POST", "/api/user", json=payload)).json()
+
+
+class HyperPanelClient:
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        *,
+        service_ids: tuple[int, ...] = (1,),
+        verify_ssl: bool = True,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ):
+        self.base_url = base_url.rstrip("/")
+        self.subscription_base_url = self.base_url
+        self.api_key = api_key
+        self.service_ids = [int(item) for item in service_ids] or [1]
+        self._client = httpx.AsyncClient(
+            base_url=self.base_url,
+            verify=verify_ssl,
+            timeout=httpx.Timeout(30, connect=15),
+            transport=transport,
+            headers={"X-API-Key": api_key, "Accept": "application/json"},
+        )
+
+    async def close(self) -> None:
+        await self._client.aclose()
+
+    async def authenticate(self, force: bool = False) -> str:
+        del force
+        response = await self._client.get("/api/admins/current")
+        MarzbanClient._raise(response)
+        return self.api_key
+
+    async def get_inbounds(self) -> dict[str, list[dict[str, Any]]]:
+        response = await self._client.get("/api/services", params={"page": 1, "limit": 100})
+        MarzbanClient._raise(response)
+        payload = response.json()
+        items = payload.get("items", []) if isinstance(payload, dict) else payload
+        selected = set(self.service_ids)
+        return {
+            "service": [
+                {"tag": str(item.get("name") or item.get("id")), "protocol": "service"}
+                for item in items
+                if isinstance(item, dict) and int(item.get("id") or 0) in selected
+            ]
+        }
+
+    async def create_user(self, spec: CreateSpec) -> dict[str, Any]:
+        unlimited_time = spec.duration_days <= 0 or spec.mode == "unlimited"
+        body: dict[str, Any] = {
+            "username": spec.username,
+            "limit_usage": spec.volume_gb * 1024**3 if spec.volume_gb > 0 else None,
+            "limit_expire": (
+                0
+                if unlimited_time or spec.mode == "on_hold"
+                else int((datetime.now(timezone.utc) + timedelta(days=spec.duration_days)).timestamp())
+            ),
+            "services": self.service_ids,
+        }
+        if not unlimited_time and spec.mode == "on_hold":
+            body["on_hold_timeout_days"] = spec.duration_days
+        response = await self._client.post("/api/subscriptions", json=[body])
+        MarzbanClient._raise(response)
+        payload = response.json()
+        if isinstance(payload, list):
+            payload = payload[0] if payload else {}
+        if not isinstance(payload, dict):
+            raise MarzbanError("پاسخ ساخت Hyper معتبر نیست.")
+        payload["subscription_url"] = payload.get("subscription_link")
+        return payload
+
+    def absolute_subscription_url(self, url: str) -> str:
+        return url.strip()

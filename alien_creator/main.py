@@ -4,7 +4,7 @@ from telegram import BotCommand
 
 from .bot import Services, build_application
 from .config import Config
-from .marzban import EasyPanelClient, MarzbanClient, MarzbanError, PasarguardClient
+from .marzban import EasyPanelClient, HyperPanelClient, MarzbanClient, MarzbanError, PasarguardClient
 from .storage import SettingsStore
 
 logger = logging.getLogger(__name__)
@@ -100,6 +100,13 @@ def main() -> None:
             config.phantom_tunnel_panel_password,
             request_timeout_seconds=20,
             connect_timeout_seconds=5,
+            verify_ssl=config.verify_ssl,
+        )
+    if config.hyper_panel_url and config.hyper_panel_api_key:
+        panels["hyper"] = HyperPanelClient(
+            config.hyper_panel_url,
+            config.hyper_panel_api_key,
+            service_ids=config.hyper_panel_service_ids,
             verify_ssl=config.verify_ssl,
         )
     application = build_application(Services(config, store, panels))

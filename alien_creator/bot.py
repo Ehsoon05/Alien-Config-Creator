@@ -36,6 +36,7 @@ from .keyboards import (
     PANEL_MMD,
     PANEL_MMD_GERMANY,
     PANEL_PHANTOM_TUNNEL,
+    PANEL_HYPER,
     PANEL_SVN,
     SETTINGS,
     STATUS,
@@ -83,6 +84,7 @@ PANEL_ORDER = (
     "mmd",
     "mmd_germany",
     "phantom_tunnel",
+    "hyper",
 )
 PANEL_BUTTONS = {
     PANEL_ALIEN: "alien",
@@ -93,6 +95,7 @@ PANEL_BUTTONS = {
     PANEL_MMD: "mmd",
     PANEL_MMD_GERMANY: "mmd_germany",
     PANEL_PHANTOM_TUNNEL: "phantom_tunnel",
+    PANEL_HYPER: "hyper",
 }
 PANEL_LABELS = {
     "alien": "Alien",
@@ -103,6 +106,7 @@ PANEL_LABELS = {
     "mmd": "MMD",
     "mmd_germany": "MMD germany",
     "phantom_tunnel": "Phantom Tunnel",
+    "hyper": "Hyper Panel",
 }
 PANEL_BUTTON_PATTERN = rf"^(?:{'|'.join(re.escape(label) for label in PANEL_BUTTONS)})$"
 

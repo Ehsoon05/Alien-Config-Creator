@@ -94,6 +94,11 @@ class Config:
     phantom_tunnel_panel_url: str
     phantom_tunnel_panel_username: str
     phantom_tunnel_panel_password: str
+    hyper_panel_url: str
+    hyper_panel_username: str
+    hyper_panel_password: str
+    hyper_panel_api_key: str
+    hyper_panel_service_ids: tuple[int, ...]
     database_path: Path
     log_level: str
     verify_ssl: bool
@@ -172,6 +177,15 @@ class Config:
             phantom_tunnel_panel_url=os.getenv("PHANTOM_TUNNEL_PANEL_URL", "").strip().rstrip("/"),
             phantom_tunnel_panel_username=os.getenv("PHANTOM_TUNNEL_PANEL_USERNAME", "").strip(),
             phantom_tunnel_panel_password=os.getenv("PHANTOM_TUNNEL_PANEL_PASSWORD", ""),
+            hyper_panel_url=os.getenv("HYPER_PANEL_URL", "").strip().rstrip("/"),
+            hyper_panel_username=os.getenv("HYPER_PANEL_USERNAME", "").strip(),
+            hyper_panel_password=os.getenv("HYPER_PANEL_PASSWORD", ""),
+            hyper_panel_api_key=os.getenv("HYPER_PANEL_API_KEY", "").strip(),
+            hyper_panel_service_ids=tuple(
+                int(item.strip())
+                for item in os.getenv("HYPER_PANEL_SERVICE_IDS", "1").split(",")
+                if item.strip().isdigit()
+            ),
             database_path=Path(os.getenv("DATABASE_PATH", "data/settings.db")),
             log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
             verify_ssl=_as_bool(os.getenv("VERIFY_SSL", "true")),
