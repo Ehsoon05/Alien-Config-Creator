@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urljoin, urlparse, urlunparse
+import re
 
 import httpx
 
@@ -311,9 +312,13 @@ class HyperPanelClient:
         }
 
     async def create_user(self, spec: CreateSpec) -> dict[str, Any]:
+        username = re.sub(r"[^a-z0-9_]+", "_", spec.username.casefold())
+        username = re.sub(r"_+", "_", username).strip("_")[:30].rstrip("_")
+        if len(username) < 3:
+            username = f"{username}_vpn"[:30].rstrip("_")
         unlimited_time = spec.duration_days <= 0 or spec.mode == "unlimited"
         body: dict[str, Any] = {
-            "username": spec.username,
+            "username": username or "phantomhubs",
             "limit_usage": spec.volume_gb * 1024**3 if spec.volume_gb > 0 else None,
             "limit_expire": (
                 0
